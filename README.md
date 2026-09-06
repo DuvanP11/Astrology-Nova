@@ -80,6 +80,12 @@ tools/serve-web.sh          # then open http://localhost:8765/
 
 Any browser with WebGL 2 will do. This is the fastest way to check a change to `web/`.
 
+The same directory is what `vercel.json` deploys, so a push to `main` also publishes the sky
+view on the web. That deployment is **not a second product** — it is the phone app's WebView
+screen, served over HTTP instead of from the APK's assets, which makes it the quickest way to
+see a change on a real device without installing anything. The Android app never loads it: it
+reads its own bundled copy through `WebViewAssetLoader`, offline.
+
 ---
 
 ## Layout

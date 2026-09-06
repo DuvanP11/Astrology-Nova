@@ -26,6 +26,9 @@ package namespace as upstream's means their fixes still merge.
   AGPL engine legal. See [NOTICE.md](NOTICE.md).
 - **`web/js/*.wasm` is committed build output.** If you change `engine/`, rebuild it and
   commit the result, or the APK silently keeps the old engine.
+- **`vercel.json` publishes `web/`, not the repo.** A push to `main` redeploys the sky view
+  as a static site. It shares the directory the APK bundles, so a change to `web/` ships to
+  both at once — and breaking the page breaks the app's deep-sky screen too.
 - **`android/docs/` describes Sky Map, not this app.** It was inherited unchanged. Do not
   treat it as a specification for anything here.
 
