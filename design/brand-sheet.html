@@ -1,0 +1,466 @@
+<title>Astrology Nova Mark</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Single-theme on purpose: this mark only ever exists on a night ground, and a
+     brand sheet that shows it on paper-white would be showing something the app
+     never does. Every colour is painted explicitly so the page holds whatever
+     ground the host puts behind it. */
+  :root {
+    --ground:    #0b1020;
+    --ground-lo: #05070f;
+    --surface:   #101733;
+    --surface-2: #141c3c;
+    --line:      #232c4c;
+    --line-soft: #1a2240;
+    --cyan:      #5af2ff;
+    --violet:    #9b7bff;
+    --pink:      #fb7ec0;
+    --light:     #e6ecff;
+    --dim:       #9aa3c7;
+    --faint:     #5a6a90;
+
+    --display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+    --body: "IBM Plex Sans", "Helvetica Neue", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--light);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.6;
+    /* A very faint star field, so the ground is a sky rather than a dark grey. */
+    background-image:
+      radial-gradient(circle at 12% 8%,  rgba(155,123,255,0.13), transparent 42%),
+      radial-gradient(circle at 88% 72%, rgba(90,242,255,0.09), transparent 40%);
+    background-attachment: fixed;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px 96px; }
+
+  /* ---- type ---- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(44px, 7vw, 76px);
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 30px;
+    line-height: 1.15;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  h3 { font-size: 15px; font-weight: 500; margin: 0 0 4px; }
+  p { margin: 0 0 14px; max-width: 62ch; text-wrap: pretty; }
+  .lede { font-size: 17px; color: var(--dim); max-width: 56ch; }
+  .note { font-size: 13.5px; color: var(--dim); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  em { font-style: italic; }
+
+  /* ---- structure ---- */
+  header.plate {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 48px;
+    align-items: center;
+    padding: 72px 0 56px;
+    border-bottom: 1px solid var(--line);
+  }
+  section { padding: 52px 0; border-bottom: 1px solid var(--line-soft); }
+  section:last-of-type { border-bottom: 0; }
+
+  .sec-head { margin-bottom: 28px; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+
+  /* A specimen sits on its own plate: this is the one place a border earns itself,
+     because each plate is a separate object being examined. */
+  .specimen {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .specimen .cap {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--dim);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 10px;
+    margin-top: auto;
+  }
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    min-height: 176px;
+  }
+
+  /* ---- palette ---- */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px 11px 0; border-bottom: 1px solid var(--line-soft); vertical-align: baseline; }
+  th {
+    font-family: var(--mono);
+    font-weight: 400;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  td.hex { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.role { color: var(--dim); }
+  .chip { display: inline-block; width: 18px; height: 18px; border: 1px solid var(--line); vertical-align: -4px; margin-right: 10px; }
+  .table-scroll { overflow-x: auto; }
+
+  /* ---- geometry callouts ---- */
+  dl.specs { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; margin: 0; font-size: 13.5px; }
+  dl.specs dt { font-family: var(--mono); color: var(--dim); white-space: nowrap; }
+  dl.specs dd { margin: 0; }
+
+  footer {
+    padding: 40px 0 0;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--faint);
+    line-height: 2;
+  }
+  footer span { color: var(--dim); }
+
+  @media (max-width: 860px) {
+    header.plate { grid-template-columns: minmax(0, 1fr); gap: 32px; padding-top: 48px; }
+    .grid-3, .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+
+<!-- The full-colour mark, defined once and referenced by every plate that shows it. -->
+<svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+  <defs>
+      <radialGradient id="hGround" cx="44" cy="38" r="94" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#141c3c"/><stop offset="0.45" stop-color="#0b1020"/><stop offset="1" stop-color="#05070f"/>
+      </radialGradient>
+      <radialGradient id="hViolet" cx="28" cy="26" r="44" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#9b7bff" stop-opacity="0.30"/><stop offset="1" stop-color="#9b7bff" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="hCyan" cx="82" cy="84" r="42" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#5af2ff" stop-opacity="0.26"/><stop offset="1" stop-color="#5af2ff" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="hGlow" cx="54" cy="54" r="34" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#5af2ff" stop-opacity="0.55"/><stop offset="0.42" stop-color="#5af2ff" stop-opacity="0.24"/><stop offset="1" stop-color="#5af2ff" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="hRing" x1="22" y1="42" x2="86" y2="66" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#9b7bff"/><stop offset="0.5" stop-color="#5af2ff" stop-opacity="0.70"/><stop offset="1" stop-color="#5af2ff"/>
+      </linearGradient>
+      <linearGradient id="hFlare" x1="30" y1="30" x2="78" y2="78" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#5af2ff"/><stop offset="0.46" stop-color="#eaf6ff"/><stop offset="1" stop-color="#9b7bff"/>
+      </linearGradient>
+    <g id="markBody">
+      <rect width="108" height="108" fill="url(#hGround)"/>
+      <rect width="108" height="108" fill="url(#hViolet)"/>
+      <rect width="108" height="108" fill="url(#hCyan)"/>
+      <g fill="#e6ecff" opacity="0.7">
+        <circle cx="18" cy="22" r="0.7"/><circle cx="89" cy="19" r="0.6"/><circle cx="97" cy="58" r="0.7"/>
+        <circle cx="13" cy="71" r="0.6"/><circle cx="28" cy="95" r="0.5"/><circle cx="79" cy="97" r="0.6"/>
+        <circle cx="64" cy="11" r="0.5"/><circle cx="37" cy="13" r="0.5"/><circle cx="10" cy="44" r="0.5"/>
+      </g>
+      <circle cx="54" cy="54" r="34" fill="url(#hGlow)"/>
+      <g transform="rotate(-22 54 54)">
+        <ellipse cx="54" cy="54" rx="32" ry="11.5" fill="none" stroke="url(#hRing)" stroke-width="2.2"/>
+        <path d="M22,49.2 Q23,53 26.8,54 Q23,55 22,58.8 Q21,55 17.2,54 Q21,53 22,49.2 Z" fill="#eaf6ff"/>
+        <path d="M86,50.4 Q86.8,53.2 89.6,54 Q86.8,54.8 86,57.6 Q85.2,54.8 82.4,54 Q85.2,53.2 86,50.4 Z" fill="#5af2ff"/>
+      </g>
+      <path d="M54,27 Q60,48 81,54 Q60,60 54,81 Q48,60 27,54 Q48,48 54,27 Z" fill="url(#hFlare)"/>
+    </g>
+    <g id="markLine">
+      <ellipse cx="54" cy="54" rx="32" ry="11.5" transform="rotate(-22 54 54)" fill="none" stroke="url(#hRing)" stroke-width="2.2"/>
+      <path d="M54,27 Q60,48 81,54 Q60,60 54,81 Q48,60 27,54 Q48,48 54,27 Z" fill="url(#hFlare)"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <header class="plate">
+    <div>
+      <p class="eyebrow">Astrology Nova &middot; brand mark</p>
+      <h1>A nova, on the<br><em>ring of the sky</em></h1>
+      <p class="lede" style="margin-top: 20px">A star caught mid-flare, sitting on the tilted band the app draws its constellations on. Drawn as vectors in Nova's own palette, at the sizes Android actually renders it.</p>
+    </div>
+
+    <svg viewBox="0 0 108 108" width="248" height="248" role="img"
+         aria-label="The Astrology Nova mark: a four-point flare on a tilted ring, over a deep navy sky"
+         style="border-radius: 24px">
+      <use href="#markBody"/>
+    </svg>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Plate 01 &middot; construction</p>
+      <h2>Everything that matters lives inside the safe circle</h2>
+      <p class="note">An adaptive icon is drawn on a 108&thinsp;dp square, but the launcher masks it to a shape the app does not choose &mdash; a circle on one phone, a squircle on the next. Only the central 66&thinsp;dp survives every mask. The flare reaches 27 units, the ring 32 along its long axis, and both companion stars ride the ring; nothing load&#8209;bearing crosses the line.</p>
+    </div>
+
+    <div class="row">
+      <svg viewBox="0 0 108 108" width="300" height="300" role="img" aria-label="Construction drawing of the mark, showing the 66 dp safe circle, the ring's 22 degree tilt and the flare's 27 unit radius" style="background: #05070f; border: 1px solid var(--line); flex: 0 0 auto">
+        <defs>
+          <linearGradient id="cFlare" x1="30" y1="30" x2="78" y2="78" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#5af2ff" stop-opacity="0.30"/><stop offset="1" stop-color="#9b7bff" stop-opacity="0.30"/>
+          </linearGradient>
+        </defs>
+
+        <!-- 108 grid, every 12 units -->
+        <g stroke="#232c4c" stroke-width="0.25">
+          <path d="M12 0V108M24 0V108M36 0V108M48 0V108M60 0V108M72 0V108M84 0V108M96 0V108"/>
+          <path d="M0 12H108M0 24H108M0 36H108M0 48H108M0 60H108M0 72H108M0 84H108M0 96H108"/>
+        </g>
+
+        <!-- safe circle, r = 33 -->
+        <circle cx="54" cy="54" r="33" fill="none" stroke="#fb7ec0" stroke-width="0.5" stroke-dasharray="2 1.6"/>
+
+        <!-- the ring's axis -->
+        <g transform="rotate(-22 54 54)">
+          <path d="M14 54H94" stroke="#9b7bff" stroke-width="0.4" stroke-dasharray="3 2"/>
+          <ellipse cx="54" cy="54" rx="32" ry="11.5" fill="none" stroke="#9b7bff" stroke-width="0.9"/>
+        </g>
+        <path d="M14 54H94" stroke="#5a6a90" stroke-width="0.35" stroke-dasharray="1 1.5"/>
+
+        <!-- flare radius -->
+        <circle cx="54" cy="54" r="27" fill="none" stroke="#5af2ff" stroke-width="0.4" stroke-dasharray="2 1.6"/>
+        <path d="M54,27 Q60,48 81,54 Q60,60 54,81 Q48,60 27,54 Q48,48 54,27 Z" fill="url(#cFlare)" stroke="#5af2ff" stroke-width="0.7"/>
+
+        <!-- callouts -->
+        <g font-family="IBM Plex Mono, monospace" font-size="4.2" fill="#9aa3c7">
+          <text x="54" y="18.6" text-anchor="middle">66 dp safe</text>
+          <text x="86" y="42" text-anchor="end" fill="#5af2ff">r 27</text>
+          <text x="70" y="70.5" fill="#9b7bff">rx 32 &middot; ry 11.5</text>
+          <text x="26" y="49" fill="#5a6a90">&minus;22&deg;</text>
+        </g>
+        <circle cx="54" cy="54" r="0.9" fill="#e6ecff"/>
+      </svg>
+
+      <div style="flex: 1 1 260px; min-width: 240px">
+        <dl class="specs">
+          <dt>viewport</dt><dd>108 &times; 108 dp</dd>
+          <dt>safe circle</dt><dd>66 dp diameter, centred</dd>
+          <dt>flare</dt><dd>four points, radius 27, sides pinched to a 6&#8209;unit control</dd>
+          <dt>ring</dt><dd>ellipse rx&nbsp;32, ry&nbsp;11.5, rotated &minus;22&deg;</dd>
+          <dt>stroke</dt><dd>2.2 units, gradient violet &rarr; cyan</dd>
+          <dt>glow</dt><dd>radial, r&nbsp;34 &mdash; the one element allowed past the safe edge, because it has no shape to lose</dd>
+        </dl>
+        <p class="note" style="margin-top: 18px">The tilt is not a styling choice. A horizontal ring reads as a plate or a coin; at &minus;22&deg; it reads as a band of sky seen from underneath, which is the thing the app is actually about.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Plate 02 &middot; launcher masks</p>
+      <h2>Three masks, one silhouette</h2>
+    </div>
+    <div class="grid-3">
+      <div class="specimen">
+        <div class="stage">
+          <div style="width: 132px; height: 132px; border-radius: 50%; overflow: hidden">
+            <svg viewBox="0 0 108 108" width="132" height="132" role="img" aria-label="Mark under a circular mask">
+              <use href="#markBody"/>
+            </svg>
+          </div>
+        </div>
+        <div class="cap"><span>Circle</span><span>Pixel</span></div>
+      </div>
+      <div class="specimen">
+        <div class="stage">
+          <div style="width: 132px; height: 132px; border-radius: 30px; overflow: hidden">
+            <svg viewBox="0 0 108 108" width="132" height="132" role="img" aria-label="Mark under a squircle mask">
+              <use href="#markBody"/>
+            </svg>
+          </div>
+        </div>
+        <div class="cap"><span>Squircle</span><span>Samsung</span></div>
+      </div>
+      <div class="specimen">
+        <div class="stage">
+          <div style="width: 132px; height: 132px; border-radius: 12px; overflow: hidden">
+            <svg viewBox="0 0 108 108" width="132" height="132" role="img" aria-label="Mark under a rounded-square mask">
+              <use href="#markBody"/>
+            </svg>
+          </div>
+        </div>
+        <div class="cap"><span>Rounded square</span><span>Nova Launcher</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Plate 03 &middot; themed icon</p>
+      <h2>Tinted by the wallpaper, down to a silhouette</h2>
+      <p class="note">Android&nbsp;13 and up throws the colour away and keeps the alpha. Gradients and glow do nothing here, so the flare is pulled in to radius&nbsp;23 while the ring stays at full span &mdash; without that gap the two shapes fuse into a blob at 48&thinsp;dp.</p>
+    </div>
+    <div class="grid-3">
+      <div class="specimen">
+        <div class="stage">
+          <div style="width: 128px; height: 128px; border-radius: 50%; background: #3b4a7a; display: flex; align-items: center; justify-content: center">
+            <svg viewBox="0 0 108 108" width="94" height="94" role="img" aria-label="Themed icon on a cool wallpaper tint">
+              <ellipse cx="54" cy="54" rx="32" ry="11.5" transform="rotate(-22 54 54)" fill="none" stroke="#dfe6ff" stroke-width="2.6"/>
+              <path d="M54,31 Q59,49.5 77,54 Q59,58.5 54,77 Q49,58.5 31,54 Q49,49.5 54,31 Z" fill="#dfe6ff"/>
+            </svg>
+          </div>
+        </div>
+        <div class="cap"><span>Cool wallpaper</span><span>alpha only</span></div>
+      </div>
+      <div class="specimen">
+        <div class="stage">
+          <div style="width: 128px; height: 128px; border-radius: 50%; background: #6d4b2f; display: flex; align-items: center; justify-content: center">
+            <svg viewBox="0 0 108 108" width="94" height="94" role="img" aria-label="Themed icon on a warm wallpaper tint">
+              <ellipse cx="54" cy="54" rx="32" ry="11.5" transform="rotate(-22 54 54)" fill="none" stroke="#ffe9d5" stroke-width="2.6"/>
+              <path d="M54,31 Q59,49.5 77,54 Q59,58.5 54,77 Q49,58.5 31,54 Q49,49.5 54,31 Z" fill="#ffe9d5"/>
+            </svg>
+          </div>
+        </div>
+        <div class="cap"><span>Warm wallpaper</span><span>alpha only</span></div>
+      </div>
+      <div class="specimen">
+        <div class="stage">
+          <div style="width: 128px; height: 128px; border-radius: 50%; background: #e6ecff; display: flex; align-items: center; justify-content: center">
+            <svg viewBox="0 0 108 108" width="94" height="94" role="img" aria-label="Themed icon on a light theme">
+              <ellipse cx="54" cy="54" rx="32" ry="11.5" transform="rotate(-22 54 54)" fill="none" stroke="#1b2340" stroke-width="2.6"/>
+              <path d="M54,31 Q59,49.5 77,54 Q59,58.5 54,77 Q49,58.5 31,54 Q49,49.5 54,31 Z" fill="#1b2340"/>
+            </svg>
+          </div>
+        </div>
+        <div class="cap"><span>Light theme</span><span>alpha only</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="grid-2">
+      <div>
+        <p class="eyebrow">Plate 04 &middot; status bar</p>
+        <h2>At 24&thinsp;dp the ring goes</h2>
+        <p class="note">The notification glyph is the flare alone. A 24&thinsp;dp ring collapses into a smudge, and the flare is the recognisable half of the mark anyway.</p>
+        <div class="specimen" style="margin-top: 20px">
+          <div class="stage" style="min-height: 148px">
+            <svg viewBox="0 0 24 24" width="120" height="120" role="img" aria-label="Notification glyph, enlarged">
+              <path d="M12,1.5 Q13.3,10.2 22.5,12 Q13.3,13.8 12,22.5 Q10.7,13.8 1.5,12 Q10.7,10.2 12,1.5 Z" fill="#e6ecff"/>
+            </svg>
+            <svg viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Notification glyph at its real size">
+              <path d="M12,1.5 Q13.3,10.2 22.5,12 Q13.3,13.8 12,22.5 Q10.7,13.8 1.5,12 Q10.7,10.2 12,1.5 Z" fill="#e6ecff"/>
+            </svg>
+          </div>
+          <div class="cap"><span>120&thinsp;px &middot; 24&thinsp;dp</span><span>ic_stat_skymap.xml</span></div>
+        </div>
+      </div>
+
+      <div>
+        <p class="eyebrow">Plate 05 &middot; lockups</p>
+        <h2>Light for the word, bold for the star</h2>
+        <p class="note">Instrument Serif sets the sheet; the lockup itself is set in the app's own UI face so it matches the chrome it appears in.</p>
+        <div class="specimen" style="margin-top: 20px; gap: 22px">
+          <div style="display: flex; align-items: center; gap: 14px">
+            <svg viewBox="0 0 108 108" width="52" height="52" role="img" aria-label="Horizontal lockup">
+              <use href="#markLine"/>
+            </svg>
+            <div style="font-family: var(--body); font-size: 26px; font-weight: 400; line-height: 1; letter-spacing: -0.01em">Astrology&nbsp;<strong style="font-weight: 500; color: var(--cyan)">Nova</strong></div>
+          </div>
+          <div style="background: #e6ecff; padding: 14px 18px; display: flex; align-items: center; gap: 12px">
+            <svg viewBox="0 0 108 108" width="34" height="34" role="img" aria-label="Lockup on a light ground">
+              <ellipse cx="54" cy="54" rx="32" ry="11.5" transform="rotate(-22 54 54)" fill="none" stroke="#6a4fd8" stroke-width="2.6"/>
+              <path d="M54,27 Q60,48 81,54 Q60,60 54,81 Q48,60 27,54 Q48,48 54,27 Z" fill="#141c3c"/>
+            </svg>
+            <div style="font-family: var(--body); font-size: 19px; color: #141c3c; line-height: 1">Astrology&nbsp;<strong style="font-weight: 500; color: #0b6f7c">Nova</strong></div>
+          </div>
+          <div class="cap"><span>On ground &middot; on light</span><span>#5AF2FF &rarr; #0B6F7C</span></div>
+        </div>
+        <p class="note" style="margin-top: 14px">Cyan on white is unreadable, so on light grounds it drops to a darker teal and the gradients go flat. A wordmark that only works on its own background is not a wordmark.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Plate 06 &middot; in place</p>
+      <h2>Beside eight flat squares</h2>
+      <p class="note">This is the size that decides whether an icon gets tapped. The flare is the only thing on the row with light coming out of it, and the ring is the only diagonal.</p>
+    </div>
+    <div class="specimen" style="max-width: 420px">
+      <div style="background: linear-gradient(170deg, #1b2340, #0b1020 60%, #141c3c); padding: 26px 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 12px">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+          <div style="width: 58px; height: 58px; border-radius: 16px; overflow: hidden">
+            <svg viewBox="0 0 108 108" width="58" height="58" role="img" aria-label="Astrology Nova on a home screen"><use href="#markBody"/></svg>
+          </div>
+          <div style="font-size: 10px; line-height: 1.15; text-align: center; color: var(--light)">Astrology<br>Nova</div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><div style="width: 58px; height: 58px; border-radius: 16px; background: #2f3a5c"></div><div style="font-size: 10px; color: #b9c1de">Camera</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><div style="width: 58px; height: 58px; border-radius: 16px; background: #35406a"></div><div style="font-size: 10px; color: #b9c1de">Maps</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><div style="width: 58px; height: 58px; border-radius: 16px; background: #2a3355"></div><div style="font-size: 10px; color: #b9c1de">Clock</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><div style="width: 58px; height: 58px; border-radius: 16px; background: #303a5e"></div><div style="font-size: 10px; color: #b9c1de">Notes</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><div style="width: 58px; height: 58px; border-radius: 16px; background: #384372"></div><div style="font-size: 10px; color: #b9c1de">Weather</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><div style="width: 58px; height: 58px; border-radius: 16px; background: #2c355a"></div><div style="font-size: 10px; color: #b9c1de">Files</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><div style="width: 58px; height: 58px; border-radius: 16px; background: #333d64"></div><div style="font-size: 10px; color: #b9c1de">Music</div></div>
+      </div>
+      <div class="cap"><span>58&thinsp;px launcher grid</span><span>mock neighbours</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Plate 07 &middot; palette</p>
+      <h2>Nova's colours, not new ones</h2>
+      <p class="note">Lifted from the assistant's own interface rather than re-derived, so the icon, the app chrome and the deep-sky view are one palette. One honest cost: cyan is the worst of the bright hues for dark adaptation. That is why the app keeps a red night mode, and why the night mode was left alone.</p>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Colour</th><th>Hex</th><th>Role in the mark</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="chip" style="background: #0b1020"></span>Ground</td><td class="hex">#0B1020</td><td class="role">The night sky behind everything; also the app's surface and the splash</td></tr>
+          <tr><td><span class="chip" style="background: #5af2ff"></span>Cyan</td><td class="hex">#5AF2FF</td><td class="role">Primary accent &mdash; the flare's cold edge, the ring's near end</td></tr>
+          <tr><td><span class="chip" style="background: #9b7bff"></span>Violet</td><td class="hex">#9B7BFF</td><td class="role">Secondary &mdash; the nebula wash and the ring's far end</td></tr>
+          <tr><td><span class="chip" style="background: #e6ecff"></span>Starlight</td><td class="hex">#E6ECFF</td><td class="role">Text, background stars, the flare's hot core</td></tr>
+          <tr><td><span class="chip" style="background: #9aa3c7"></span>Dim</td><td class="hex">#9AA3C7</td><td class="role">Secondary text and inactive controls</td></tr>
+          <tr><td><span class="chip" style="background: #fb7ec0"></span>Pink</td><td class="hex">#FB7EC0</td><td class="role">Held back for time travel; never in the mark itself</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div><span>ic_launcher_foreground.xml</span> &middot; the flare, the ring, the two companions</div>
+    <div><span>ic_launcher_background.xml</span> &middot; the sky and its nine stars</div>
+    <div><span>ic_launcher_monochrome.xml</span> &middot; the themed silhouette</div>
+    <div><span>ic_stat_skymap.xml</span> &middot; the 24&thinsp;dp glyph</div>
+    <div style="margin-top: 14px">All four under <span>android/app/src/main/res/drawable/</span>, GPLv3 with the rest of the app.</div>
+  </footer>
+
+</div>

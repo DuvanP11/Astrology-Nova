@@ -89,6 +89,7 @@ android/   Sky Map v2, forked and rebranded. Produces the APK.
            └─ app/src/main/kotlin/.../ui/deepsky/   hosts the engine in a WebView
 engine/    Stellarium Web Engine's C, patched to build with modern emscripten
 web/       what the WebView loads: the page, the built wasm, 22 MB of sky data
+design/    the brand sheet — open design/brand-sheet.html in a browser
 tools/     helper scripts that are not specific to one module
 ```
 

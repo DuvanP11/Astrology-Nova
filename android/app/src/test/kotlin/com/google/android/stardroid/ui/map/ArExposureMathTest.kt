@@ -11,6 +11,7 @@ package com.google.android.stardroid.ui.map
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.jupiter.api.Test
+import java.text.DecimalFormatSymbols
 
 class ArExposureMathTest {
     @Test
@@ -39,9 +40,15 @@ class ArExposureMathTest {
 
     @Test
     fun `shutter readout uses fractions below a quarter second and decimals above`() {
+        // The readout sits beside localised labels in the AR controls, so it formats in the
+        // user's locale — a Spanish phone should read "0,5s", not "0.5s". Hard-coding the
+        // dot made this test pass only on machines whose default locale happens to use one;
+        // it is the expectation that has to follow the locale, not the app.
+        val point = DecimalFormatSymbols.getInstance().decimalSeparator
+
         assertThat(ArExposureMath.formatExposureTime(33_333_333L)).isEqualTo("1/30s")
         assertThat(ArExposureMath.formatExposureTime(1_000_000L)).isEqualTo("1/1000s")
-        assertThat(ArExposureMath.formatExposureTime(500_000_000L)).isEqualTo("0.5s")
-        assertThat(ArExposureMath.formatExposureTime(2_000_000_000L)).isEqualTo("2.0s")
+        assertThat(ArExposureMath.formatExposureTime(500_000_000L)).isEqualTo("0${point}5s")
+        assertThat(ArExposureMath.formatExposureTime(2_000_000_000L)).isEqualTo("2${point}0s")
     }
 }
