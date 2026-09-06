@@ -76,8 +76,8 @@ android {
         applicationId = "app.astrologynova"
         // Restarts at 1: this is a different application id, so it is a first release
         // rather than a continuation of upstream's version line.
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // D95: CI passes -PskipGlBenchmarks=true, which the D19 perf gate reads to skip
         // itself. Set through the DSL rather than

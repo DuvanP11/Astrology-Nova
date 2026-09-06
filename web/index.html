@@ -935,6 +935,26 @@
     return false;
   }
 
+  /**
+   * The engine attributes that change something visible here:
+   *   selection      the object card
+   *   progressbars   the loading readout
+   *   fov            whether the zoom buttons are at their limits
+   *   *_visible      the toolbar chips (constellations lines/art/names) and
+   *                  `visible` for nebulae, the Milky Way, air, ground and grid
+   * Everything else — fps, tt, utc, hovered, yaw, pitch, roll, clicks, zoom — is
+   * either invisible here or changes every frame.
+   */
+  var DISPLAYED = {
+    selection: true,
+    progressbars: true,
+    fov: true,
+    visible: true,
+    lines_visible: true,
+    images_visible: true,
+    labels_visible: true
+  };
+
   var syncQueued = false;
 
   function queueSync() {
@@ -1030,6 +1050,13 @@
     }
   };
 
+  // The selected object's azimuth and altitude drift as the Earth turns, and no
+  // whitelisted attribute announces that. One refresh a second while the card is
+  // open keeps it honest; the firehose was never the right way to get this.
+  setInterval(function () {
+    if (stel && stel.core.selection && el('info').classList.contains('on')) updateInfo();
+  }, 1000);
+
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && Camera.active) {
       setControl('camera', false);
@@ -1084,21 +1111,19 @@
       window.NovaSky.setTime(Date.now());
       core.fov = 90 * Math.PI / 180;
 
-      // The engine fires this for EVERY attribute it changes, and while the phone
-      // is pointing that is yaw, pitch and roll on every sensor sample — 180 calls
-      // a second, each one of which used to rebuild the whole chrome, innerHTML
-      // and coordinate conversions included. That is what made the sky stutter
-      // when you moved the phone.
+      // A whitelist, and it has to be one. The engine reports every attribute it
+      // changes, and several of those change on EVERY frame no matter what the
+      // user does: `fps` (core.c, once per render), and `tt`/`utc`, which
+      // observer_update recomputes and re-announces each frame. Rebuilding the
+      // chrome from this firehose is what made the sky stutter while pointing,
+      // and an earlier attempt at a blacklist only removed the sensor's own
+      // yaw/pitch/roll — `fps` alone kept it firing sixty times a second.
       //
-      // Two things fix it. Where you are LOOKING changes nothing on screen — the
-      // selected object's magnitude and coordinates depend on time and on where
-      // you are standing, not on which way the phone faces — so those attributes
-      // are ignored outright. Everything else is coalesced to at most one rebuild
-      // per frame, so a burst of changes costs one.
+      // So: react to the handful of attributes this page actually displays, and
+      // ignore everything else by default. A new per-frame attribute upstream
+      // then costs nothing instead of quietly bringing the stutter back.
       stel.change(function (obj, attr) {
-        if (attr === 'hovered' || attr === 'yaw' || attr === 'pitch' || attr === 'roll') {
-          return;
-        }
+        if (!DISPLAYED[attr]) return;
         queueSync();
       });
 
