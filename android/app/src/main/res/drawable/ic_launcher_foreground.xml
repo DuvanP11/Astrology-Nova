@@ -1,0 +1,96 @@
+<!--
+  Astrology Nova launcher icon — foreground layer.
+  Original artwork for Astrology Nova, GPLv3 with the rest of the repository.
+
+  The mark is a nova — a star caught mid-flare — sitting on a tilted celestial
+  ring. The ring is what makes the icon read as *this* app rather than as a
+  generic sparkle: it is the sky itself, the band the app draws constellations
+  on, and its tilt echoes the ecliptic. Two lesser stars ride the ring so the
+  eye follows it around behind the flare instead of stopping at the rim.
+
+  Colours are Nova's: cyan (#5AF2FF) into starlight (#EAF6FF) into violet
+  (#9B7BFF), the same three the assistant's own UI uses.
+
+  Everything load-bearing lives inside the 66dp safe circle (radius 33 about
+  54,54): the flare reaches 27, the ring 32 along its long axis and the two
+  companion stars sit on the ring, so a circular launcher mask never clips the
+  silhouette. The soft glow is allowed past that edge — it has no shape to lose.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Flare glow, drawn first so the ring and the star both sit on it. -->
+    <path android:pathData="M54,20a34,34 0,1 0,0.01 0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="34">
+                <item android:offset="0" android:color="#8C5AF2FF" />
+                <item android:offset="0.42" android:color="#3D5AF2FF" />
+                <item android:offset="1" android:color="#005AF2FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- The celestial ring, tilted like the ecliptic. Stroked rather than
+         filled so it stays a band of sky and not a disc. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-22">
+        <path
+            android:fillColor="#00000000"
+            android:strokeWidth="2.2"
+            android:strokeLineCap="round"
+            android:pathData="M22,54a32,11.5 0,1 0,64 0a32,11.5 0,1 0,-64 0z">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="22"
+                    android:startY="42"
+                    android:endX="86"
+                    android:endY="66">
+                    <item android:offset="0" android:color="#FF9B7BFF" />
+                    <item android:offset="0.5" android:color="#B35AF2FF" />
+                    <item android:offset="1" android:color="#FF5AF2FF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+
+    <!-- The nova itself: a four-point flare with pinched, concave sides. -->
+    <path android:pathData="M54,27 Q60,48 81,54 Q60,60 54,81 Q48,60 27,54 Q48,48 54,27 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="30"
+                android:startY="30"
+                android:endX="78"
+                android:endY="78">
+                <item android:offset="0" android:color="#FF5AF2FF" />
+                <item android:offset="0.46" android:color="#FFEAF6FF" />
+                <item android:offset="1" android:color="#FF9B7BFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Companion stars, on the ring: one at each end of the long axis, rotated
+         with it. Small enough to stay subordinate to the flare at 48dp. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-22">
+        <path
+            android:fillColor="#FFEAF6FF"
+            android:pathData="M22,49.2 Q23,53 26.8,54 Q23,55 22,58.8 Q21,55 17.2,54 Q21,53 22,49.2 Z" />
+        <path
+            android:fillColor="#FF5AF2FF"
+            android:pathData="M86,50.4 Q86.8,53.2 89.6,54 Q86.8,54.8 86,57.6 Q85.2,54.8 82.4,54 Q85.2,53.2 86,50.4 Z" />
+    </group>
+</vector>

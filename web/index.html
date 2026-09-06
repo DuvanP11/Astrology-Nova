@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<!--
+  Astrology Nova — deep-sky view.
+
+  The Stellarium Web Engine (AGPL v3, Stellarium Labs SRL / Noctua Software Ltd)
+  compiled to WebAssembly, wrapped in Nova's own chrome. This page is deliberately
+  dependency-free: it ships inside the APK and has to draw the sky with the phone
+  in airplane mode, so there is no Vue, no icon font and no CDN anywhere in it.
+  Every asset it loads is a sibling file served by WebViewAssetLoader.
+
+  Licensed under the GNU AGPL v3 with the rest of engine/ and web/.
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Astrology Nova</title>
+<style>
+  :root {
+    --nova-ground: #0b1020;
+    --nova-panel: rgba(15, 22, 51, 0.82);
+    --nova-edge: rgba(90, 242, 255, 0.22);
+    --nova-cyan: #5af2ff;
+    --nova-violet: #9b7bff;
+    --nova-text: #e6ecff;
+    --nova-dim: #9aa3c7;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--nova-ground);
+    color: var(--nova-text);
+    font: 400 14px/1.45 -apple-system, "Roboto", "Segoe UI", system-ui, sans-serif;
+    /* The sky is the only thing that should ever move under a finger. */
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+  }
+
+  #sky {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* The chrome floats over the sky, so every panel is a translucent slab with a
+     hairline in the brand cyan rather than a solid surface. */
+  .slab {
+    background: var(--nova-panel);
+    border: 1px solid var(--nova-edge);
+    border-radius: 14px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  #topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px;
+    background: linear-gradient(to bottom, rgba(11, 16, 32, 0.9), rgba(11, 16, 32, 0));
+    pointer-events: none;
+  }
+
+  #wordmark {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  #wordmark b { color: var(--nova-cyan); font-weight: 600; }
+
+  #progress {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--nova-dim);
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  #progress.on { opacity: 1; }
+
+  /* Bottom toolbar. Scrolls horizontally rather than wrapping: a second row of
+     controls would eat the sky on a short phone. */
+  #toolbar {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0;
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: linear-gradient(to top, rgba(11, 16, 32, 0.92), rgba(11, 16, 32, 0));
+  }
+  #toolbar::-webkit-scrollbar { display: none; }
+
+  .chip {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 66px;
+    padding: 8px 4px 6px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background: rgba(20, 28, 60, 0.55);
+    color: var(--nova-dim);
+    font-size: 10px;
+    line-height: 1.15;
+    text-align: center;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .chip svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+  .chip.on {
+    color: var(--nova-cyan);
+    border-color: var(--nova-edge);
+    background: rgba(90, 242, 255, 0.1);
+  }
+  .chip:active { transform: scale(0.96); }
+
+  /* Selection card: sits above the toolbar, never over it. */
+  #info {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+    padding: 12px 14px;
+    display: none;
+  }
+  #info.on { display: block; }
+  #info h2 {
+    margin: 0 0 2px;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--nova-text);
+  }
+  #info .sub {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--nova-violet);
+  }
+  #info dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 12px;
+    font-size: 12px;
+  }
+  #info dt { color: var(--nova-dim); }
+  #info dd { margin: 0; font-variant-numeric: tabular-nums; }
+  #info .close {
+    position: absolute;
+    top: 8px; right: 10px;
+    padding: 4px 8px;
+    color: var(--nova-dim);
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  /* Cold start. The engine takes a moment to bring 1.2 MB of wasm up and read
+     the star index off disk; an empty black screen reads as a crash. */
+  #boot {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: var(--nova-ground);
+    transition: opacity 0.4s;
+  }
+  #boot.gone { opacity: 0; pointer-events: none; }
+  #boot .flare {
+    width: 76px; height: 76px;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  #boot p { margin: 0; color: var(--nova-dim); font-size: 13px; }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.94); }
+    50%      { opacity: 1;    transform: scale(1.04); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #boot .flare { animation: none; opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="sky"></canvas>
+
+<div id="topbar">
+  <div id="wordmark">Astrology&nbsp;<b>Nova</b></div>
+  <div id="progress"></div>
+</div>
+
+<div id="info" class="slab">
+  <div class="close" id="info-close">×</div>
+  <h2 id="info-name"></h2>
+  <p class="sub" id="info-type"></p>
+  <dl id="info-rows"></dl>
+</div>
+
+<div id="toolbar"></div>
+
+<div id="boot">
+  <svg class="flare" viewBox="0 0 108 108" aria-hidden="true">
+    <defs>
+      <linearGradient id="bootg" x1="30" y1="30" x2="78" y2="78" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#5af2ff"/>
+        <stop offset="0.46" stop-color="#eaf6ff"/>
+        <stop offset="1" stop-color="#9b7bff"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="54" cy="54" rx="32" ry="11.5" transform="rotate(-22 54 54)"
+             fill="none" stroke="#5af2ff" stroke-opacity="0.55" stroke-width="2.2"/>
+    <path d="M54,27 Q60,48 81,54 Q60,60 54,81 Q48,60 27,54 Q48,48 54,27 Z" fill="url(#bootg)"/>
+  </svg>
+  <p id="boot-msg">Encendiendo el cielo…</p>
+</div>
+
+<script src="js/stellarium-web-engine.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Strings. The Android shell ships 28 locales; this page carries two, because
+  // its whole vocabulary is eight toggles and four row labels. Anything else
+  // falls back to English rather than showing a key.
+  // ---------------------------------------------------------------------------
+  var ES = navigator.language && navigator.language.slice(0, 2) === 'es';
+  function t(en, es) { return ES ? es : en; }
+
+  var el = function (id) { return document.getElementById(id); };
+  var canvas = el('sky');
+
+  // Icons are inline paths on a 24-unit grid, stroked in currentColor so the
+  // chip's on/off state tints them for free.
+  var ICONS = {
+    lines:      'M4 17 L9 7 L15 12 L20 5 M4 17 m-1.4 0 a1.4 1.4 0 1 0 2.8 0 a1.4 1.4 0 1 0 -2.8 0 M9 7 m-1.4 0 a1.4 1.4 0 1 0 2.8 0 a1.4 1.4 0 1 0 -2.8 0 M15 12 m-1.4 0 a1.4 1.4 0 1 0 2.8 0 a1.4 1.4 0 1 0 -2.8 0 M20 5 m-1.4 0 a1.4 1.4 0 1 0 2.8 0 a1.4 1.4 0 1 0 -2.8 0',
+    art:        'M7 20 C5 14 7 6 12 3 C17 6 19 14 17 20 Z M12 3 L12 20',
+    labels:     'M4 7 h16 M4 12 h11 M4 17 h7',
+    atmosphere: 'M3 15 h18 M5 11 h14 M8 7 h8 M12 21 v-2',
+    ground:     'M2 16 L8 10 L13 15 L17 11 L22 16 M2 16 h20 v4 h-20 z',
+    grid:       'M3 3 h18 v18 h-18 z M9 3 v18 M15 3 v18 M3 9 h18 M3 15 h18',
+    dso:        'M12 12 m-4 0 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 M12 12 m-8.5 0 a8.5 4.5 0 1 0 17 0 a8.5 4.5 0 1 0 -17 0',
+    milkyway:   'M2 18 C7 16 9 10 14 8 C17 6.8 20 6.4 22 6.6 M4 13 m-0.6 0 a0.6 0.6 0 1 0 1.2 0 a0.6 0.6 0 1 0 -1.2 0 M11 11 m-0.6 0 a0.6 0.6 0 1 0 1.2 0 a0.6 0.6 0 1 0 -1.2 0 M18 8 m-0.6 0 a0.6 0.6 0 1 0 1.2 0 a0.6 0.6 0 1 0 -1.2 0'
+  };
+
+  // Each toggle names an engine object and one of its boolean properties.
+  var TOGGLES = [
+    { id: 'lines',      icon: 'lines',      label: t('Lines', 'Líneas'),      path: 'constellations',    attr: 'lines_visible',  on: true },
+    { id: 'art',        icon: 'art',        label: t('Art', 'Arte'),          path: 'constellations',    attr: 'images_visible', on: false },
+    { id: 'names',      icon: 'labels',     label: t('Names', 'Nombres'),     path: 'constellations',    attr: 'labels_visible', on: true },
+    { id: 'dsos',       icon: 'dso',        label: t('Nebulae', 'Nebulosas'), path: 'dsos',              attr: 'visible',        on: true },
+    { id: 'milkyway',   icon: 'milkyway',   label: t('Milky Way', 'Vía Láctea'), path: 'milkyway',       attr: 'visible',        on: true },
+    { id: 'atmosphere', icon: 'atmosphere', label: t('Air', 'Atmósfera'),     path: 'atmosphere',        attr: 'visible',        on: true },
+    { id: 'landscape',  icon: 'ground',     label: t('Ground', 'Suelo'),      path: 'landscapes',        attr: 'visible',        on: true },
+    { id: 'grid',       icon: 'grid',       label: t('Grid', 'Cuadrícula'),   path: 'lines.azimuthal',   attr: 'visible',        on: false }
+  ];
+
+  var stel = null;
+
+  function resolve(path) {
+    return path.split('.').reduce(function (o, k) { return o && o[k]; }, stel.core);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Toolbar
+  // ---------------------------------------------------------------------------
+  function buildToolbar() {
+    var bar = el('toolbar');
+    TOGGLES.forEach(function (spec) {
+      var chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.setAttribute('role', 'switch');
+      chip.setAttribute('aria-label', spec.label);
+      chip.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" ' +
+        'stroke-linejoin="round" d="' + ICONS[spec.icon] + '"/></svg><span>' +
+        spec.label + '</span>';
+      chip.addEventListener('click', function () {
+        var obj = resolve(spec.path);
+        if (!obj) return;
+        obj[spec.attr] = !obj[spec.attr];
+        syncToolbar();
+      });
+      spec.node = chip;
+      bar.appendChild(chip);
+    });
+  }
+
+  function syncToolbar() {
+    if (!stel) return;
+    TOGGLES.forEach(function (spec) {
+      var obj = resolve(spec.path);
+      var on = !!(obj && obj[spec.attr]);
+      spec.node.classList.toggle('on', on);
+      spec.node.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection card
+  // ---------------------------------------------------------------------------
+  function pad(n, width) {
+    var s = String(Math.abs(Math.trunc(n)));
+    while (s.length < width) s = '0' + s;
+    return s;
+  }
+
+  function formatRa(angle) {
+    var f = stel.a2tf(angle, 1);
+    return pad(f.hours, 2) + 'h ' + pad(f.minutes, 2) + 'm ' +
+           pad(f.seconds, 2) + '.' + f.fraction + 's';
+  }
+
+  function formatDeg(angle) {
+    var f = stel.a2af(angle, 1);
+    return f.sign + pad(f.degrees, 2) + '° ' + pad(f.arcminutes, 2) + "' " +
+           pad(f.arcseconds, 2) + '"';
+  }
+
+  function displayName(obj) {
+    var names = obj.designations();
+    if (!names || !names.length) return t('Unnamed object', 'Objeto sin nombre');
+    // Designations come back most-human-readable first, prefixed by catalogue.
+    return names[0].replace(/^NAME /, '');
+  }
+
+  function updateInfo() {
+    var card = el('info');
+    var sel = stel.core.selection;
+    if (!sel) { card.classList.remove('on'); return; }
+
+    el('info-name').textContent = displayName(sel);
+
+    var others = (sel.designations() || []).slice(1, 4)
+      .map(function (d) { return d.replace(/^NAME /, ''); });
+    el('info-type').textContent = others.join(' · ');
+
+    var obs = stel.core.observer;
+    var cirs = stel.convertFrame(obs, 'ICRF', 'CIRS', sel.getInfo('radec'));
+    var radec = stel.c2s(cirs);
+    var azalt = stel.c2s(stel.convertFrame(obs, 'CIRS', 'OBSERVED', cirs));
+    var vmag = sel.getInfo('vmag');
+
+    var rows = [
+      [t('Magnitude', 'Magnitud'), vmag === undefined || isNaN(vmag)
+        ? '—' : vmag.toFixed(2)],
+      ['RA', formatRa(stel.anp(radec[0]))],
+      ['Dec', formatDeg(stel.anpm(radec[1]))],
+      [t('Azimuth', 'Azimut'), formatDeg(stel.anp(azalt[0]))],
+      [t('Altitude', 'Altura'), formatDeg(stel.anpm(azalt[1]))]
+    ];
+
+    el('info-rows').innerHTML = rows.map(function (r) {
+      return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>';
+    }).join('');
+    card.classList.add('on');
+  }
+
+  el('info-close').addEventListener('click', function () {
+    if (stel) stel.core.selection = null;
+    el('info').classList.remove('on');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Loading progress
+  // ---------------------------------------------------------------------------
+  function updateProgress() {
+    var bars = stel.core.progressbars;
+    var node = el('progress');
+    if (!bars || !bars.length) { node.classList.remove('on'); return; }
+    var bar = bars[0];
+    var pct = bar.total ? Math.round(bar.value / bar.total * 100) : 0;
+    node.textContent = bar.label + ' ' + pct + '%';
+    node.classList.add('on');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bridge to the Android shell. MainActivity pushes the observer's position and
+  // the clock in; the page never asks the browser for geolocation, so the WebView
+  // needs no permission of its own and the two views agree on where you are.
+  // ---------------------------------------------------------------------------
+  var UNIX_EPOCH_MJD = 40587.0;
+
+  window.NovaSky = {
+    ready: false,
+
+    setObserver: function (lat, lon, elevationM) {
+      if (!stel) return;
+      var obs = stel.core.observer;
+      obs.latitude = lat * Math.PI / 180;
+      obs.longitude = lon * Math.PI / 180;
+      obs.elevation = elevationM || 0;
+    },
+
+    // Wall-clock milliseconds since the Unix epoch, as MJD for the engine.
+    setTime: function (unixMillis) {
+      if (!stel) return;
+      stel.core.observer.utc = unixMillis / 86400000.0 + UNIX_EPOCH_MJD;
+    },
+
+    // Real time again, after time travel.
+    resumeNow: function () {
+      if (!stel) return;
+      stel.core.time_speed = 1;
+      window.NovaSky.setTime(Date.now());
+    },
+
+    // Point the view at an azimuth/altitude in degrees — used by the Android
+    // side when the user picks an object in the native search.
+    lookAt: function (azDeg, altDeg, fovDeg) {
+      if (!stel) return;
+      var pos = stel.s2c(azDeg * Math.PI / 180, altDeg * Math.PI / 180);
+      stel.core.lookat(stel.convertFrame(stel.core.observer, 'OBSERVED', 'ICRF', pos), 1.0);
+      if (fovDeg) stel.core.fov = fovDeg * Math.PI / 180;
+    },
+
+    setToggle: function (id, value) {
+      var spec = TOGGLES.filter(function (s) { return s.id === id; })[0];
+      if (!spec || !stel) return;
+      var obj = resolve(spec.path);
+      if (obj) { obj[spec.attr] = !!value; syncToolbar(); }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------------------
+  buildToolbar();
+
+  StelWebEngine({
+    wasmFile: 'js/stellarium-web-engine.wasm',
+    canvas: canvas,
+    translateFn: function (domain, str) { return str; },
+
+    onReady: function (engine) {
+      stel = engine;
+      var core = stel.core;
+      var d = 'skydata/';
+
+      core.stars.addDataSource({ url: d + 'stars' });
+      core.skycultures.addDataSource({ url: d + 'skycultures/western', key: 'western' });
+      core.dsos.addDataSource({ url: d + 'dso' });
+      core.landscapes.addDataSource({ url: d + 'landscapes/guereins', key: 'guereins' });
+      core.landscapes.addDataSource({ key: 'zero' });
+      core.milkyway.addDataSource({ url: d + 'surveys/milkyway' });
+      core.minor_planets.addDataSource({ url: d + 'mpcorb.dat', key: 'mpc_asteroids' });
+      ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']
+        .forEach(function (body) {
+          core.planets.addDataSource({ url: d + 'surveys/sso/' + body, key: body });
+        });
+      core.comets.addDataSource({ url: d + 'CometEls.txt', key: 'mpc_comets' });
+      core.satellites.addDataSource({ url: d + 'tle_satellite.dat', key: 'jsonl/sat' });
+
+      stel.setFont('regular', 'fonts/Roboto-Regular.ttf', 1.38);
+      stel.setFont('bold', 'fonts/Roboto-Bold.ttf', 1.38);
+
+      // Defaults: constellation lines and names on, art off. Art is gorgeous and
+      // it is also the fastest way to lose the actual stars behind it, so it is
+      // opt-in — the app is for finding things in the sky first.
+      TOGGLES.forEach(function (spec) {
+        var obj = resolve(spec.path);
+        if (obj) obj[spec.attr] = spec.on;
+      });
+
+      // Until the shell sends a fix, show the sky from wherever the clock says
+      // it is at 0°/0° — wrong, but a moving sky beats a blank one, and
+      // setObserver overwrites it within a frame or two of the view opening.
+      window.NovaSky.setTime(Date.now());
+      core.fov = 90 * Math.PI / 180;
+
+      // One callback for every engine-side change; cheap enough to just resync
+      // the whole chrome, which is a toolbar and one card.
+      stel.change(function (obj, attr) {
+        if (attr === 'hovered') return;
+        syncToolbar();
+        updateInfo();
+        updateProgress();
+      });
+
+      syncToolbar();
+      window.NovaSky.ready = true;
+      if (window.NovaHost && window.NovaHost.onSkyReady) window.NovaHost.onSkyReady();
+
+      var boot = el('boot');
+      boot.classList.add('gone');
+      setTimeout(function () { boot.style.display = 'none'; }, 420);
+    }
+  });
+})();
+</script>
+</body>
+</html>

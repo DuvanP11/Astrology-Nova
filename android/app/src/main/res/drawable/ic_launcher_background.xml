@@ -1,0 +1,72 @@
+<!--
+  Astrology Nova launcher icon — background layer.
+  Original artwork for Astrology Nova, GPLv3 with the rest of the repository.
+  Nova's own palette: the deep navy ground (#0B1020) the assistant's UI uses,
+  lifted toward violet (#9B7BFF) where the nebula sits and toward cyan
+  (#5AF2FF) in the opposite corner, so the two accents of the brand are both
+  present before the foreground draws anything.
+  Density-independent vector; minSdk 29 renders vector adaptive layers.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Base night sky. Centred off-axis so the gradient reads as depth rather
+         than as a vignette once the OS masks the icon to a circle or squircle. -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="44"
+                android:centerY="38"
+                android:gradientRadius="94">
+                <item android:offset="0" android:color="#FF141C3C" />
+                <item android:offset="0.45" android:color="#FF0B1020" />
+                <item android:offset="1" android:color="#FF05070F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Violet nebula wash, upper left. -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="28"
+                android:centerY="26"
+                android:gradientRadius="44">
+                <item android:offset="0" android:color="#4C9B7BFF" />
+                <item android:offset="1" android:color="#009B7BFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Cyan wash, lower right: the counterweight that keeps the ground from
+         reading as a single flat violet. -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="82"
+                android:centerY="84"
+                android:gradientRadius="42">
+                <item android:offset="0" android:color="#425AF2FF" />
+                <item android:offset="1" android:color="#005AF2FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Background star field. Deliberately outside the 66dp safe zone as well
+         as inside it: the layer is parallaxed and cropped by the launcher, and
+         a field that stops at the safe circle betrays the seam when it moves. -->
+    <path
+        android:fillColor="#B3E6ECFF"
+        android:pathData="M17.3,22a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0z
+                          M88.4,19a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0z
+                          M96.3,58a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0z
+                          M12.4,71a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0z
+                          M27.5,95a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0z
+                          M78.4,97a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0z
+                          M63.5,11a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0z
+                          M36.5,13a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0z
+                          M9.5,44a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0z" />
+</vector>
