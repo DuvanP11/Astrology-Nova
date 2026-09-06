@@ -1,5 +1,5 @@
-import javax.inject.Inject
 import java.util.Properties
+import javax.inject.Inject
 
 plugins {
     id("skymap.android-app")
@@ -144,7 +144,6 @@ android {
             dimension = "sourciness"
         }
     }
-
 
     lint {
         // Partial translation is the steady state, not a defect (D72). Locales are filled
