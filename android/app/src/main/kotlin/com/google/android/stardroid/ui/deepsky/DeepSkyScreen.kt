@@ -10,7 +10,14 @@
 package com.google.android.stardroid.ui.deepsky
 
 import android.annotation.SuppressLint
+import android.content.ContentValues
+import android.content.Context
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Base64
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -42,6 +49,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.webkit.WebViewAssetLoader
 import com.google.android.stardroid.R
 import com.google.android.stardroid.math.LatLong
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The deep-sky view: the Stellarium Web Engine (compiled to WebAssembly, bundled under
@@ -69,6 +77,8 @@ private const val SKY_PAGE = "$ASSET_ORIGIN/assets/web/index.html"
 @Composable
 fun DeepSkyScreen(
     location: LatLong?,
+    hasCameraPermission: () -> Boolean,
+    onRequestCameraPermission: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -84,6 +94,11 @@ fun DeepSkyScreen(
     // Held so the lifecycle observer and the location effect can reach the same instance the
     // AndroidView factory created.
     val webViewRef = remember { arrayOfNulls<WebView>(1) }
+
+    // Set when the page asked for the camera and the app did not hold the permission yet.
+    // The system dialog pauses this activity, so ON_RESUME is where the answer is read back
+    // — there is no result callback to hook, the permission launcher lives in the activity.
+    val awaitingCameraPermission = remember { AtomicBoolean(false) }
 
     BackHandler(onBack = onBack)
 
@@ -114,8 +129,38 @@ fun DeepSkyScreen(
                     settings.useWideViewPort = false
                     settings.loadWithOverviewMode = false
                     setBackgroundColor(0xFF0B1020.toInt())
+                    // The camera preview is a muted <video> the page starts itself; without
+                    // this the WebView waits for a tap that has already happened.
+                    settings.mediaPlaybackRequiresUserGesture = false
 
                     addJavascriptInterface(NovaHost(this), "NovaHost")
+
+                    webChromeClient =
+                        object : WebChromeClient() {
+                            // getUserMedia inside the page lands here. The page's origin is
+                            // our own asset loader, so the only question is whether the app
+                            // itself may use the camera; if it may not, ask for it and let
+                            // ON_RESUME below tell the page how that went.
+                            override fun onPermissionRequest(request: PermissionRequest) {
+                                val wantsCamera =
+                                    request.resources.contains(
+                                        PermissionRequest.RESOURCE_VIDEO_CAPTURE,
+                                    )
+                                if (!wantsCamera) {
+                                    request.deny()
+                                    return
+                                }
+                                if (hasCameraPermission()) {
+                                    request.grant(
+                                        arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE),
+                                    )
+                                } else {
+                                    request.deny()
+                                    awaitingCameraPermission.set(true)
+                                    onRequestCameraPermission()
+                                }
+                            }
+                        }
 
                     webViewClient =
                         object : WebViewClient() {
@@ -177,6 +222,13 @@ fun DeepSkyScreen(
                         // Coming back from a long pause, the sky is stale by however long the
                         // app was away.
                         web.evaluateJavascript("window.NovaSky && NovaSky.resumeNow()", null)
+                        if (awaitingCameraPermission.getAndSet(false)) {
+                            val granted = hasCameraPermission()
+                            web.evaluateJavascript(
+                                "window.NovaSky && NovaSky.cameraPermissionResult($granted)",
+                                null,
+                            )
+                        }
                     }
                     else -> Unit
                 }
@@ -201,9 +253,9 @@ private fun WebView.pushObserver(location: LatLong?) {
 }
 
 /**
- * The page's one call back into the app. Kept to a single method with no arguments — a
- * JavaScript interface is a hole in the app's process, and this one is only wide enough to
- * say "the engine is up, send me where we are".
+ * The page's two calls back into the app. A JavaScript interface is a hole in the app's
+ * process, so it stays as narrow as the job allows: one method to say "the engine is up,
+ * send me where we are", and one to hand over a picture the WebView cannot save by itself.
  */
 private class NovaHost(private val webView: WebView) {
     @JavascriptInterface
@@ -212,5 +264,77 @@ private class NovaHost(private val webView: WebView) {
         webView.post {
             webView.evaluateJavascript("NovaSky.setTime(${System.currentTimeMillis()})", null)
         }
+    }
+
+    /**
+     * Writes a capture into the shared gallery.
+     *
+     * The page cannot do this itself: a WebView ignores `<a download>`, so a capture taken
+     * inside the app would silently go nowhere. It arrives as a `data:` URL because that is
+     * what a canvas produces, and it is decoded here rather than in JavaScript so the bytes
+     * cross the bridge once.
+     *
+     * No storage permission is involved. On minSdk 29 and up an app owns what it inserts
+     * into MediaStore, and asking for WRITE_EXTERNAL_STORAGE to write a picture the user
+     * just took would be asking for far more than the job needs.
+     */
+    @JavascriptInterface
+    fun saveImage(
+        dataUrl: String,
+        name: String,
+    ) {
+        // Already off the main thread (a JavascriptInterface call arrives on a WebView
+        // thread), so the decode and the write happen here rather than being posted.
+        val saved =
+            runCatching {
+                val comma = dataUrl.indexOf(',')
+                require(comma > 0 && dataUrl.startsWith("data:image/")) { "not an image data URL" }
+                val bytes = Base64.decode(dataUrl.substring(comma + 1), Base64.DEFAULT)
+                writeToGallery(webView.context, name, bytes)
+            }.getOrDefault(false)
+
+        webView.post {
+            webView.evaluateJavascript("window.NovaSky && NovaSky.imageSaved($saved)", null)
+        }
+    }
+}
+
+/** The album captures land in, so they sit together rather than loose in Pictures. */
+private const val GALLERY_ALBUM = "Astrology Nova"
+
+private fun writeToGallery(
+    context: Context,
+    name: String,
+    bytes: ByteArray,
+): Boolean {
+    val resolver = context.contentResolver
+    val details =
+        ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, name)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(
+                MediaStore.Images.Media.RELATIVE_PATH,
+                "${Environment.DIRECTORY_PICTURES}/$GALLERY_ALBUM",
+            )
+            // Hides the row from the gallery until the bytes are actually there, so a
+            // half-written capture is never shown and never left behind if this fails.
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+
+    val uri =
+        resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, details) ?: return false
+
+    return runCatching {
+        resolver.openOutputStream(uri).use { stream ->
+            requireNotNull(stream) { "no output stream for $uri" }.write(bytes)
+        }
+        details.clear()
+        details.put(MediaStore.Images.Media.IS_PENDING, 0)
+        resolver.update(uri, details, null, null)
+        true
+    }.getOrElse {
+        // Leaving a pending row behind would be an invisible file the user cannot delete.
+        resolver.delete(uri, null, null)
+        false
     }
 }

@@ -305,6 +305,8 @@ fun SkyMapNavHost(
             val locationState by locationViewModel.state.collectAsStateWithLifecycle()
             DeepSkyScreen(
                 location = (locationState as? LocationState.Confirmed)?.location,
+                hasCameraPermission = hasCameraPermission,
+                onRequestCameraPermission = onRequestCameraPermission,
                 onBack = { navController.popBackStack() },
             )
         }

@@ -15,6 +15,11 @@ each do half the job:
 Astrology Nova ships both. The map is what opens; **⋮ → Deep sky** hands the same sky to the
 Stellarium engine when you want to browse rather than point.
 
+The deep-sky view has its own five controls down the right edge: **camera** (the live rear
+camera behind the sky, screened together so the constellations sit on the real one),
+**compass** (the phone points, the sky follows), **+** / **−**, and a **shutter** that saves
+what you are looking at — camera frame and sky composited, not one layer of it.
+
 Everything runs on the phone. No account, no ads, no tracking, no network needed after
 install.
 

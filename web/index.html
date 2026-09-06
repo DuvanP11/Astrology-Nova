@@ -56,6 +56,103 @@
     user-select: none;
   }
 
+  /* The camera feed sits behind the sky. The canvas above it is composited with
+     mix-blend-mode: screen, which is what makes this work without touching the
+     engine's C: screen leaves the backdrop untouched wherever the sky is black
+     and adds stars, lines and labels on top of it. The engine clears every frame
+     to opaque black (render_gl.c), so an alpha channel on the canvas would not
+     have helped — the black would still have covered the camera. */
+  #camera {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+  }
+  #camera.on { opacity: 1; }
+  #sky.over-camera { mix-blend-mode: screen; }
+
+  /* Right-hand control column. Vertical and thumb-height on purpose: these are
+     used one-handed with the phone held up at the sky, which is the opposite of
+     the bottom toolbar's browse-while-sitting posture. */
+  #controls {
+    position: fixed;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 3;
+  }
+
+  .ctl {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--nova-edge);
+    border-radius: 16px;
+    background: var(--nova-panel);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    color: var(--nova-dim);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+  .ctl svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+  .ctl.on { color: var(--nova-cyan); background: rgba(90, 242, 255, 0.14); border-color: var(--nova-cyan); }
+  .ctl:active { transform: scale(0.94); }
+  .ctl[disabled] { opacity: 0.35; pointer-events: none; }
+
+  /* Transient messages: a camera refusal, a saved screenshot, a landscape warning.
+     Nothing here is worth a dialog. */
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 108px);
+    transform: translate(-50%, 8px);
+    max-width: min(360px, calc(100vw - 32px));
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: var(--nova-panel);
+    border: 1px solid var(--nova-edge);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    font-size: 13px;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 4;
+  }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  /* The shutter flash. Cheap, and it is the only feedback that reads instantly
+     as "that was taken" on a screen already full of stars. */
+  #flash {
+    position: fixed;
+    inset: 0;
+    background: #e6ecff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #flash.fire { animation: shutter 0.42s ease-out; }
+  @keyframes shutter {
+    0% { opacity: 0; }
+    12% { opacity: 0.82; }
+    100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #flash.fire { animation: none; }
+  }
+
   #sky {
     position: fixed;
     inset: 0;
@@ -147,7 +244,9 @@
   #info {
     position: fixed;
     left: 12px;
-    right: 12px;
+    /* Clears the control column rather than sliding under it on a short screen,
+       where the vertically-centred controls reach down into the card. */
+    right: 76px;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
     padding: 12px 14px;
     display: none;
@@ -212,7 +311,9 @@
 </head>
 <body>
 
+<video id="camera" playsinline webkit-playsinline muted autoplay aria-hidden="true"></video>
 <canvas id="sky"></canvas>
+<div id="flash"></div>
 
 <div id="topbar">
   <div id="wordmark">Astrology&nbsp;<b>Nova</b></div>
@@ -226,7 +327,11 @@
   <dl id="info-rows"></dl>
 </div>
 
+<div id="controls"></div>
+
 <div id="toolbar"></div>
+
+<div id="toast" role="status" aria-live="polite"></div>
 
 <div id="boot">
   <svg class="flare" viewBox="0 0 108 108" aria-hidden="true">
@@ -405,6 +510,433 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Transient messages. A refused camera, a saved photo, a phone held sideways —
+  // none of it is worth a dialog, and a dialog over the sky is worse than useless
+  // when you are outside holding the phone up.
+  // ---------------------------------------------------------------------------
+  var toastTimer = null;
+  function toast(message, ms) {
+    var node = el('toast');
+    node.textContent = message;
+    node.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { node.classList.remove('on'); }, ms || 2600);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Camera. Ported from Astara's camera-service.js (AGPL v3, same licence as this
+  // file), trimmed to what this page needs and with the Vue store removed.
+  // ---------------------------------------------------------------------------
+  var Camera = {
+    stream: null,
+    active: false,
+    video: el('camera'),
+
+    supported: function () {
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    },
+
+    start: function () {
+      var self = this;
+      if (self.active) return Promise.resolve(true);
+      if (!self.supported()) {
+        toast(t('This browser has no camera access.', 'Este navegador no da acceso a la cámara.'));
+        return Promise.resolve(false);
+      }
+      // No resolution constraint: asking for one makes Android crop the sensor to
+      // match, which narrows the real field of view and puts the drawn sky out of
+      // register with what the camera sees.
+      return navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+        .then(function (stream) {
+          self.stream = stream;
+          self.video.srcObject = stream;
+          return self.video.play();
+        })
+        .then(function () {
+          self.active = true;
+          self.video.classList.add('on');
+          return true;
+        })
+        .catch(function (err) {
+          self.stop();
+          var denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+          toast(denied
+            ? t('Camera permission refused.', 'Permiso de cámara denegado.')
+            : t('No camera available.', 'No hay cámara disponible.'));
+          return false;
+        });
+    },
+
+    stop: function () {
+      if (this.stream) {
+        this.stream.getTracks().forEach(function (track) { track.stop(); });
+        this.stream = null;
+      }
+      this.video.classList.remove('on');
+      this.video.srcObject = null;
+      this.active = false;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Pointing the sky with the phone. Ported from Astara's gyroscope-service.js
+  // (AGPL v3): the rotation-matrix derivation and the adaptive smoothing are
+  // theirs, and both are the fiddly parts — the W3C device frame, the roll needed
+  // to keep the horizon level, and a gain that is heavy enough to kill jitter
+  // when still without lagging when you swing the phone across the sky.
+  //
+  // Removed: their Capacitor screen-orientation lock, which this page cannot use.
+  // Kept: the portrait-only restriction, because the maths below assumes the
+  // device's -Z axis is the camera and does not compensate for a rotated screen.
+  // ---------------------------------------------------------------------------
+  var DEG = Math.PI / 180;
+
+  var Gyro = {
+    active: false,
+    smoothYaw: null,
+    smoothPitch: null,
+    lastUpdate: 0,
+    updateInterval: 16,
+    // Exponential adaptive gain: still phone → heavy smoothing, moving phone →
+    // light smoothing.
+    minFactor: 0.06,
+    maxFactor: 0.7,
+    k: 4.0,
+    d0: 0.02,
+
+    requestPermission: function () {
+      // iOS gates the sensor behind a user gesture; everywhere else this is a no-op.
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        return DeviceOrientationEvent.requestPermission()
+          .then(function (r) { return r === 'granted'; })
+          .catch(function () { return false; });
+      }
+      return Promise.resolve(true);
+    },
+
+    start: function () {
+      var self = this;
+      if (self.active) return Promise.resolve(true);
+      if (window.innerWidth > window.innerHeight) {
+        toast(t('Hold the phone upright to point at the sky.',
+                'Pon el teléfono vertical para apuntar al cielo.'));
+        return Promise.resolve(false);
+      }
+      return self.requestPermission().then(function (ok) {
+        if (!ok) {
+          toast(t('Motion sensors refused.', 'Permiso de sensores denegado.'));
+          return false;
+        }
+        self.active = true;
+        self.smoothYaw = null;
+        self.smoothPitch = null;
+        self.handler = self.onOrientation.bind(self);
+        // deviceorientationabsolute is the one referenced to true north; plain
+        // deviceorientation may be relative to wherever the phone started.
+        if ('ondeviceorientationabsolute' in window) {
+          window.addEventListener('deviceorientationabsolute', self.handler, true);
+        } else {
+          window.addEventListener('deviceorientation', self.handler, true);
+        }
+        self.resizeHandler = function () {
+          if (window.innerWidth > window.innerHeight) {
+            setControl('compass', false);
+            toast(t('Pointing stopped: phone is sideways.',
+                    'Apuntado detenido: el teléfono está de lado.'));
+          }
+        };
+        window.addEventListener('resize', self.resizeHandler);
+        // Swiping the sky by hand means you want to look somewhere else than
+        // where the phone points; the two modes cannot both win.
+        self.touchHandler = function (e) {
+          if (e.touches.length === 1) {
+            setControl('compass', false);
+            toast(t('Pointing stopped — you dragged the sky.',
+                    'Apuntado detenido: arrastraste el cielo.'));
+          }
+        };
+        canvas.addEventListener('touchmove', self.touchHandler, { passive: true });
+        if (stel && stel.core.fov > 60 * DEG) stel.core.fov = 45 * DEG;
+        return true;
+      });
+    },
+
+    stop: function () {
+      if (!this.active) return;
+      this.active = false;
+      window.removeEventListener('deviceorientationabsolute', this.handler, true);
+      window.removeEventListener('deviceorientation', this.handler, true);
+      window.removeEventListener('resize', this.resizeHandler);
+      canvas.removeEventListener('touchmove', this.touchHandler);
+      if (stel) stel.core.observer.roll = 0;
+    },
+
+    /**
+     * Where the back camera points, in world coordinates, plus the roll needed to
+     * keep the horizon level. W3C gives R = Rz(alpha)·Rx(beta)·Ry(gamma); the back
+     * camera is the device's -Z axis, so it is the third column of R, negated.
+     */
+    orientationData: function (alpha, beta, gamma) {
+      var a = alpha * DEG, b = beta * DEG, g = gamma * DEG;
+      var cA = Math.cos(a), sA = Math.sin(a);
+      var cB = Math.cos(b), sB = Math.sin(b);
+      var cG = Math.cos(g), sG = Math.sin(g);
+
+      var m12 = -sA * cB;
+      var m22 = cA * cB;
+      var m13 = cA * sG + sA * sB * cG;
+      var m23 = sA * sG - cA * sB * cG;
+      var m33 = cB * cG;
+
+      var east = -m13, north = -m23, up = -m33;
+
+      // Roll: how far the device's own "up" has rotated around the view axis.
+      var horizontal = Math.sqrt(east * east + north * north);
+      var roll;
+      if (horizontal > 0.01) {
+        var rightEast = -north / horizontal;
+        var rightNorth = east / horizontal;
+        roll = -Math.atan2(m12 * rightEast + m22 * rightNorth, sB);
+      } else {
+        // Straight up or straight down: the view axis is vertical and "right" is
+        // undefined, so gamma is the only thing left that means anything.
+        roll = g;
+      }
+      return { east: east, north: north, up: up, roll: roll };
+    },
+
+    smooth: function (next, prev, wraps) {
+      if (prev === null) return next;
+      var diff = next - prev;
+      if (wraps) {
+        if (diff > Math.PI) diff -= 2 * Math.PI;
+        if (diff < -Math.PI) diff += 2 * Math.PI;
+      }
+      var absDiff = Math.abs(diff);
+      var factor;
+      if (absDiff < this.d0) {
+        factor = this.minFactor;
+      } else {
+        var response = 1 - Math.exp(-this.k * (absDiff - this.d0));
+        factor = this.minFactor + (this.maxFactor - this.minFactor) * response;
+      }
+      return prev + factor * diff;
+    },
+
+    onOrientation: function (event) {
+      if (!this.active || !stel) return;
+      var now = Date.now();
+      if (now - this.lastUpdate < this.updateInterval) return;
+      this.lastUpdate = now;
+
+      var alpha = event.alpha, beta = event.beta, gamma = event.gamma;
+      if (alpha === null || beta === null || gamma === null) return;
+
+      // iOS reports a true heading clockwise from north; alpha is counterclockwise.
+      if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+        alpha = (360 - event.webkitCompassHeading) % 360;
+      }
+
+      var d = this.orientationData(alpha, beta, gamma);
+
+      // W3C world frame is X=East, Y=North, Z=Up; the engine's OBSERVED frame is
+      // X=North, Y=East, Z=Up, and yaw is measured from north toward east.
+      var yaw = Math.atan2(d.east, d.north);
+      var pitch = Math.atan2(d.up, Math.sqrt(d.north * d.north + d.east * d.east));
+
+      this.smoothYaw = this.smooth(yaw, this.smoothYaw, true);
+      this.smoothPitch = this.smooth(pitch, this.smoothPitch, false);
+      this.smoothPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.smoothPitch));
+
+      try {
+        var obs = stel.core.observer;
+        obs.yaw = this.smoothYaw;
+        obs.pitch = this.smoothPitch;
+        obs.roll = d.roll;
+      } catch (e) {
+        // A frame dropped mid-teardown is not worth breaking the sensor loop over.
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Zoom
+  // ---------------------------------------------------------------------------
+  var FOV_MIN = 0.6 * DEG;
+  var FOV_MAX = 120 * DEG;
+
+  function zoomBy(factor) {
+    if (!stel) return;
+    stel.core.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, stel.core.fov * factor));
+    syncControls();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Capture. Composites what you are actually looking at — camera frame first,
+  // then the sky screened over it, exactly as the CSS does live — rather than
+  // saving one layer and calling it a photo.
+  //
+  // Reading the canvas back requires preserveDrawingBuffer, which this page asks
+  // the engine for at startup; without it the drawing buffer is already cleared
+  // by the time we get here and the sky comes out blank.
+  // ---------------------------------------------------------------------------
+  function capture() {
+    if (!stel) return;
+    var out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    var ctx = out.getContext('2d');
+
+    if (Camera.active && Camera.video.videoWidth) {
+      // object-fit: cover, by hand — the same crop the live view shows.
+      var vw = Camera.video.videoWidth, vh = Camera.video.videoHeight;
+      var scale = Math.max(out.width / vw, out.height / vh);
+      var dw = vw * scale, dh = vh * scale;
+      ctx.drawImage(Camera.video, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+      ctx.globalCompositeOperation = 'screen';
+    } else {
+      ctx.fillStyle = '#0b1020';
+      ctx.fillRect(0, 0, out.width, out.height);
+    }
+    ctx.drawImage(canvas, 0, 0, out.width, out.height);
+
+    var flash = el('flash');
+    flash.classList.remove('fire');
+    void flash.offsetWidth;
+    flash.classList.add('fire');
+
+    var name = 'astrology-nova-' + new Date().toISOString().replace(/[:.]/g, '-') + '.jpg';
+    var dataUrl = out.toDataURL('image/jpeg', 0.92);
+
+    // Inside the app the native side writes it to the gallery: a WebView ignores
+    // <a download>, and on Android 10+ MediaStore needs no storage permission.
+    if (window.NovaHost && window.NovaHost.saveImage) {
+      window.NovaHost.saveImage(dataUrl, name);
+      return;
+    }
+    var link = document.createElement('a');
+    link.download = name;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast(t('Saved.', 'Guardada.'));
+  }
+
+  // Called from the native side once it knows whether the write worked.
+  function onImageSaved(ok) {
+    toast(ok
+      ? t('Saved to your gallery.', 'Guardada en tu galería.')
+      : t('Could not save the picture.', 'No se pudo guardar la imagen.'));
+  }
+
+  // ---------------------------------------------------------------------------
+  // The control column
+  // ---------------------------------------------------------------------------
+  var CTL_ICONS = {
+    camera: 'M4 8h2.9l1.7-2.3h6.8L17.1 8H20a1.7 1.7 0 0 1 1.7 1.7v8.6A1.7 1.7 0 0 1 20 20H4a1.7 1.7 0 0 1-1.7-1.7V9.7A1.7 1.7 0 0 1 4 8z M12 10.2a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z',
+    compass: 'M12 3.4a8.6 8.6 0 1 0 0 17.2 8.6 8.6 0 0 0 0-17.2z M15.6 8.4 13.2 13.2 8.4 15.6 10.8 10.8 Z',
+    plus: 'M12 5.4v13.2 M5.4 12h13.2',
+    minus: 'M5.4 12h13.2',
+    shutter: 'M12 3.3a8.7 8.7 0 1 0 0 17.4 8.7 8.7 0 0 0 0-17.4z M12 6.7a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z'
+  };
+
+  var CONTROLS = [
+    { id: 'camera',  icon: 'camera',  toggle: true,  label: t('Camera', 'Cámara') },
+    { id: 'compass', icon: 'compass', toggle: true,  label: t('Point at the sky', 'Apuntar al cielo') },
+    { id: 'zoomin',  icon: 'plus',    toggle: false, label: t('Zoom in', 'Acercar') },
+    { id: 'zoomout', icon: 'minus',   toggle: false, label: t('Zoom out', 'Alejar') },
+    { id: 'shot',    icon: 'shutter', toggle: false, label: t('Take a picture', 'Tomar una captura') }
+  ];
+
+  // What the sky looked like before the camera came on, so turning it off puts
+  // things back rather than leaving the user with a stripped view.
+  var beforeCamera = null;
+
+  function setControl(id, value) {
+    if (id === 'camera') {
+      if (value) {
+        Camera.start().then(function (ok) {
+          if (!ok) { syncControls(); return; }
+          // The atmosphere and the ground are painted, opaque, and drawn over
+          // exactly what the camera is showing. They have to go, or AR mode is a
+          // picture of a simulated sky sitting on a picture of a real one.
+          beforeCamera = {
+            atmosphere: stel.core.atmosphere.visible,
+            landscapes: stel.core.landscapes.visible
+          };
+          stel.core.atmosphere.visible = false;
+          stel.core.landscapes.visible = false;
+          canvas.classList.add('over-camera');
+          syncControls();
+          // Pointing is the whole reason to open the camera.
+          if (!Gyro.active) setControl('compass', true);
+        });
+        return;
+      }
+      Camera.stop();
+      canvas.classList.remove('over-camera');
+      if (beforeCamera && stel) {
+        stel.core.atmosphere.visible = beforeCamera.atmosphere;
+        stel.core.landscapes.visible = beforeCamera.landscapes;
+        beforeCamera = null;
+      }
+      syncControls();
+      return;
+    }
+
+    if (id === 'compass') {
+      if (value) {
+        Gyro.start().then(syncControls);
+      } else {
+        Gyro.stop();
+        syncControls();
+      }
+    }
+  }
+
+  function buildControls() {
+    var host = el('controls');
+    CONTROLS.forEach(function (spec) {
+      var node = document.createElement('div');
+      node.className = 'ctl';
+      node.setAttribute('role', spec.toggle ? 'switch' : 'button');
+      node.setAttribute('aria-label', spec.label);
+      node.setAttribute('title', spec.label);
+      node.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path ' +
+        'stroke-linecap="round" stroke-linejoin="round" d="' + CTL_ICONS[spec.icon] + '"/></svg>';
+      node.addEventListener('click', function () {
+        if (spec.id === 'zoomin') return zoomBy(1 / 1.35);
+        if (spec.id === 'zoomout') return zoomBy(1.35);
+        if (spec.id === 'shot') return capture();
+        setControl(spec.id, !stateOf(spec.id));
+      });
+      spec.node = node;
+      host.appendChild(node);
+    });
+  }
+
+  function stateOf(id) {
+    if (id === 'camera') return Camera.active;
+    if (id === 'compass') return Gyro.active;
+    return false;
+  }
+
+  function syncControls() {
+    CONTROLS.forEach(function (spec) {
+      if (spec.toggle) {
+        var on = stateOf(spec.id);
+        spec.node.classList.toggle('on', on);
+        spec.node.setAttribute('aria-checked', on ? 'true' : 'false');
+      }
+      if (spec.id === 'zoomin') spec.node.disabled = stel && stel.core.fov <= FOV_MIN * 1.001;
+      if (spec.id === 'zoomout') spec.node.disabled = stel && stel.core.fov >= FOV_MAX * 0.999;
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Bridge to the Android shell. MainActivity pushes the observer's position and
   // the clock in; the page never asks the browser for geolocation, so the WebView
   // needs no permission of its own and the two views agree on where you are.
@@ -444,6 +976,20 @@
       if (fovDeg) stel.core.fov = fovDeg * Math.PI / 180;
     },
 
+    // Called by the Android shell after it has written a capture to the gallery.
+    imageSaved: function (ok) { onImageSaved(!!ok); },
+
+    // The shell calls this once the user has answered the camera permission
+    // dialog, so the toggle can retry without the user pressing it twice.
+    cameraPermissionResult: function (granted) {
+      if (granted) {
+        setControl('camera', true);
+      } else {
+        syncControls();
+        toast(t('Camera permission refused.', 'Permiso de cámara denegado.'));
+      }
+    },
+
     setToggle: function (id, value) {
       var spec = TOGGLES.filter(function (s) { return s.id === id; })[0];
       if (!spec || !stel) return;
@@ -452,14 +998,25 @@
     }
   };
 
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && Camera.active) {
+      setControl('camera', false);
+      toast(t('Camera released.', 'Cámara liberada.'));
+    }
+  });
+
   // ---------------------------------------------------------------------------
   // Boot
   // ---------------------------------------------------------------------------
   buildToolbar();
+  buildControls();
 
   StelWebEngine({
     wasmFile: 'js/stellarium-web-engine.wasm',
     canvas: canvas,
+    // Asked for by capture(): without it the browser clears the drawing buffer
+    // after compositing each frame and a screenshot of the sky comes out empty.
+    preserveDrawingBuffer: true,
     translateFn: function (domain, str) { return str; },
 
     onReady: function (engine) {
@@ -503,11 +1060,13 @@
       stel.change(function (obj, attr) {
         if (attr === 'hovered') return;
         syncToolbar();
+        syncControls();
         updateInfo();
         updateProgress();
       });
 
       syncToolbar();
+      syncControls();
       window.NovaSky.ready = true;
       if (window.NovaHost && window.NovaHost.onSkyReady) window.NovaHost.onSkyReady();
 

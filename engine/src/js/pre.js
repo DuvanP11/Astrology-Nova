@@ -23,7 +23,12 @@ Module['onRuntimeInitialized'] = function() {
     contextAttributes.stencil = true;
     contextAttributes.antialias = true;
     contextAttributes.premultipliedAlpha = true;
-    contextAttributes.preserveDrawingBuffer = false;
+    // Astrology Nova: the client decides. Reading pixels back out of the canvas —
+    // which is what taking a screenshot of the sky is — only works if the drawing
+    // buffer survives compositing, and the browser clears it after every frame
+    // unless asked not to. Left false by default: it costs a little on tiled GPUs
+    // and no other client needs it.
+    contextAttributes.preserveDrawingBuffer = !!Module.preserveDrawingBuffer;
     contextAttributes.preferLowPowerToHighPerformance = false;
     contextAttributes.failIfMajorPerformanceCaveat = false;
     contextAttributes.majorVersion = 1;

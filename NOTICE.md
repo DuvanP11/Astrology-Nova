@@ -77,6 +77,17 @@ that; each is marked with an `Astrology Nova:` comment in the source:
 5. `Module.writeAsciiToMemory` (removed from emscripten) → `Module.stringToUTF8`, which also
    makes the call correct for non-ASCII strings rather than merely working again.
 
+6. `Module.preserveDrawingBuffer` is now honoured instead of hard-coded to false (`src/js/pre.js`).
+   Reading pixels back out of the canvas — taking a screenshot of the sky — needs it, and the
+   browser clears the drawing buffer after every frame without it. Default is unchanged.
+
+`web/index.html` also carries ports of two files from Astara's Vue frontend, which is AGPL
+like the engine: `gyroscope-service.js` (the W3C-device-orientation to OBSERVED-frame
+derivation, the roll that keeps the horizon level, and the adaptive smoothing gain) and
+`camera-service.js` (the getUserMedia constraints). Both were reduced to plain JavaScript
+with the Vue store and the Capacitor screen-orientation lock removed. The composited capture
+is not theirs — theirs saves the camera frame alone.
+
 `web/js/stellarium-web-engine.{js,wasm}` are the **build output** of the above, committed on
 purpose: with them present the APK builds with nothing but the Android SDK, and emscripten is
 needed only to change the engine itself.
