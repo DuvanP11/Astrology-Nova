@@ -84,6 +84,13 @@ that; each is marked with an `Astrology Nova:` comment in the source:
    (see `capture()` in `web/index.html`). The option is kept as an escape hatch in case that
    ordering ever stops holding.
 
+7. `src/js/canvas.js` compared the canvas's backing-store size against its CSS size while
+   assigning it CSS size × devicePixelRatio. On any display with dpr ≠ 1 — every phone — the
+   two can never match, so the resize branch ran on every frame and reallocated (and cleared)
+   the drawing buffer sixty times a second. Desktops have dpr 1, where the comparison happens
+   to be right, which is why it survived upstream. Now compared against the rounded target
+   size.
+
 `web/index.html` also carries ports of two files from Astara's Vue frontend, which is AGPL
 like the engine: `gyroscope-service.js` (the W3C-device-orientation to OBSERVED-frame
 derivation, the roll that keeps the horizon level, and the adaptive smoothing gain) and

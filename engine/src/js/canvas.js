@@ -32,12 +32,21 @@ Module.afterInit(function () {
 
     var displayWidth = rect.width;
     var displayHeight = rect.height;
-    var sizeChanged = (canvas.width !== displayWidth) ||
-      (canvas.height !== displayHeight);
 
-    if (sizeChanged) {
-      canvas.width = displayWidth * dpr;
-      canvas.height = displayHeight * dpr;
+    // Astrology Nova: compare like with like. This used to test the canvas's
+    // backing-store size (physical pixels) against the CSS size, while assigning
+    // it CSS size * dpr. On anything with dpr != 1 — every phone — the two can
+    // never be equal, so the test passed on every frame and the canvas was
+    // reallocated sixty times a second. Assigning canvas.width reallocates the
+    // drawing buffer AND clears it, which cost most of the frame budget and made
+    // the sky flicker. Desktops have dpr 1, where the old test happened to be
+    // right, which is why this survived upstream.
+    var targetWidth = Math.round(displayWidth * dpr);
+    var targetHeight = Math.round(displayHeight * dpr);
+
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
     }
 
     // TODO: manage paning and flicking here
