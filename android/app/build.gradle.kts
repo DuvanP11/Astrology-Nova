@@ -15,6 +15,19 @@ val secrets =
         }
     }
 
+// The deep-sky payload, staged out of the repository's top-level web/ rather than checked
+// in twice. Sync (not Copy) so a file deleted from web/ also leaves the APK.
+//
+// The destination is the assets *root* and the files land in a web/ subdirectory of it, so
+// the whole directory can be handed to assets.srcDir() as one task output — see the note in
+// the android block below for why that matters.
+val syncNovaWebAssets =
+    tasks.register<Sync>("syncNovaWebAssets") {
+        description = "Stages the deep-sky web bundle into the app's generated assets."
+        from(rootProject.file("../web")) { into("web") }
+        into(layout.buildDirectory.dir("generated/novaWebAssets"))
+    }
+
 android {
     namespace = "com.google.android.stardroid"
     defaultConfig {
@@ -98,7 +111,13 @@ android {
     // engine build writes into it and an iOS shell would read the same folder. Sync it into
     // a generated assets root rather than duplicating it under app/src/main/assets, where
     // it would drift the first time the engine is rebuilt.
-    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/novaWebAssets"))
+    //
+    // The task provider (not a plain path) is what registers the directory: passing it here
+    // makes Gradle carry the dependency to every consumer of the asset source set, lint's
+    // model tasks included. Naming the consumers instead — matching merge*Assets — looked
+    // like it worked and then failed the release build, because lintVital reads the same
+    // directory and was not in the list.
+    sourceSets["main"].assets.srcDir(syncNovaWebAssets)
 
     lint {
         // Partial translation is the steady state, not a defect (D72). Locales are filled
@@ -167,18 +186,3 @@ dependencies {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }
-
-// See the generated-assets note in the android block: web/ is copied in, not checked in
-// twice. Sync (not Copy) so a file deleted from web/ also leaves the APK.
-val syncNovaWebAssets =
-    tasks.register<Sync>("syncNovaWebAssets") {
-        description = "Stages the deep-sky web bundle into the app's generated assets."
-        from(rootProject.file("../web"))
-        into(layout.buildDirectory.dir("generated/novaWebAssets/web"))
-    }
-
-// AGP creates the per-variant asset merges after this file is evaluated, so match them
-// lazily rather than naming them.
-tasks
-    .matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
-    .configureEach { dependsOn(syncNovaWebAssets) }
