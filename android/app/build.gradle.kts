@@ -1,3 +1,4 @@
+import javax.inject.Inject
 import java.util.Properties
 
 plugins {
@@ -15,18 +16,56 @@ val secrets =
         }
     }
 
-// The deep-sky payload, staged out of the repository's top-level web/ rather than checked
-// in twice. Sync (not Copy) so a file deleted from web/ also leaves the APK.
-//
-// The destination is the assets *root* and the files land in a web/ subdirectory of it, so
-// the whole directory can be handed to assets.srcDir() as one task output — see the note in
-// the android block below for why that matters.
-val syncNovaWebAssets =
-    tasks.register<Sync>("syncNovaWebAssets") {
-        description = "Stages the deep-sky web bundle into the app's generated assets."
-        from(rootProject.file("../web")) { into("web") }
-        into(layout.buildDirectory.dir("generated/novaWebAssets"))
+/**
+ * Stages the deep-sky payload — the wasm engine, its sky data and the page that drives them
+ * — out of the repository's top-level `web/` directory and into the app's assets.
+ *
+ * A plain `Sync` task would do the copying, but it cannot be wired to the asset source set
+ * in a way AGP honours: handing `assets.srcDir()` a path loses the task dependency
+ * altogether (a change to web/ then never reaches the APK, silently), and handing it a task
+ * provider only wires *some* consumers — the release build failed on lint's model task,
+ * which reads the same directory. `addGeneratedSourceDirectory` below is the supported
+ * wiring, and it needs a task exposing a `DirectoryProperty` output, which `Sync` does not.
+ *
+ * The payload lands in a `web/` subdirectory of [outputDir] so that the whole of [outputDir]
+ * is the assets root, and `assets/web/index.html` is what resolves at runtime.
+ */
+abstract class StageWebBundle : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val source: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @get:Inject
+    abstract val fs: FileSystemOperations
+
+    @TaskAction
+    fun stage() {
+        // sync, not copy: a file deleted from web/ has to leave the APK too.
+        fs.sync {
+            from(source)
+            into(outputDir.dir("web"))
+        }
     }
+}
+
+val stageWebBundle =
+    tasks.register<StageWebBundle>("stageWebBundle") {
+        description = "Stages the deep-sky web bundle into the app's generated assets."
+        source.set(rootProject.layout.projectDirectory.dir("../web"))
+        outputDir.set(layout.buildDirectory.dir("generated/novaWebAssets"))
+    }
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            stageWebBundle,
+            StageWebBundle::outputDir,
+        )
+    }
+}
 
 android {
     namespace = "com.google.android.stardroid"
@@ -37,8 +76,8 @@ android {
         applicationId = "app.astrologynova"
         // Restarts at 1: this is a different application id, so it is a first release
         // rather than a continuation of upstream's version line.
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // D95: CI passes -PskipGlBenchmarks=true, which the D19 perf gate reads to skip
         // itself. Set through the DSL rather than
@@ -106,18 +145,6 @@ android {
         }
     }
 
-    // The deep-sky view's payload — the wasm engine, its 22 MB of sky data and the page
-    // that drives them — lives in the repository's top-level web/ directory, because the
-    // engine build writes into it and an iOS shell would read the same folder. Sync it into
-    // a generated assets root rather than duplicating it under app/src/main/assets, where
-    // it would drift the first time the engine is rebuilt.
-    //
-    // The task provider (not a plain path) is what registers the directory: passing it here
-    // makes Gradle carry the dependency to every consumer of the asset source set, lint's
-    // model tasks included. Naming the consumers instead — matching merge*Assets — looked
-    // like it worked and then failed the release build, because lintVital reads the same
-    // directory and was not in the list.
-    sourceSets["main"].assets.srcDir(syncNovaWebAssets)
 
     lint {
         // Partial translation is the steady state, not a defect (D72). Locales are filled

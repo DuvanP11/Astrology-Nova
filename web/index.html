@@ -931,8 +931,15 @@
         spec.node.classList.toggle('on', on);
         spec.node.setAttribute('aria-checked', on ? 'true' : 'false');
       }
-      if (spec.id === 'zoomin') spec.node.disabled = stel && stel.core.fov <= FOV_MIN * 1.001;
-      if (spec.id === 'zoomout') spec.node.disabled = stel && stel.core.fov >= FOV_MAX * 0.999;
+      // toggleAttribute, not .disabled: these are divs, and a div has no disabled
+      // property — the CSS rule matches the attribute, so setting the property
+      // would have left the zoom buttons looking live at both limits.
+      if (spec.id === 'zoomin') {
+        spec.node.toggleAttribute('disabled', !!stel && stel.core.fov <= FOV_MIN * 1.001);
+      }
+      if (spec.id === 'zoomout') {
+        spec.node.toggleAttribute('disabled', !!stel && stel.core.fov >= FOV_MAX * 0.999);
+      }
     });
   }
 
