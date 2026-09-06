@@ -32,6 +32,28 @@ package namespace as upstream's means their fixes still merge.
 - **`android/docs/` describes Sky Map, not this app.** It was inherited unchanged. Do not
   treat it as a specification for anything here.
 
+## Releasing
+
+`gh release create vX.Y.Z <apk> --notes-file ...`, with the **release** APK
+(`./gradlew :app:assembleFdroidRelease`), not the debug one.
+
+The signing key lives in `android/app/astrology-nova.keystore` with its password in
+`android/app/no-checkin.properties` — both git-ignored, both on the author's machine only.
+**Android installs an update only over an install signed with the same key.** Lose that file
+and every user has to uninstall before they can update, so it is not regenerable. If it is
+gone, say so rather than quietly making a new one.
+
+Two things worth checking on a release build specifically, because minification is off in
+debug and neither failure is visible until someone installs it:
+
+```sh
+apksigner verify --print-certs <apk>                 # expect CN=Astrology Nova
+unzip -p <apk> classes.dex | strings | grep onSkyReady   # expect a hit
+```
+
+The second one is the deep-sky bridge. R8 renames it without the keep rule in
+`proguard-rules.pro`, and the symptom is a sky that draws from the wrong place on Earth.
+
 ## Building
 
 See [README.md](README.md). Short version: `cd android && ./gradlew :app:assembleFdroidDebug`.

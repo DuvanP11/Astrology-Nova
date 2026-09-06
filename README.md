@@ -20,12 +20,24 @@ install.
 
 ---
 
+## Get it
+
+**[Download AstrologyNova-1.0.0.apk](https://github.com/DuvanP11/Astrology-Nova/releases/latest)**
+— Android 10+, 40 MB, signed. Open it on the phone and allow installs from wherever you
+opened it.
+
+Or try the deep-sky half in a browser first, no install:
+**[astrology-nova-ten.vercel.app](https://astrology-nova-ten.vercel.app)** (no sensors or
+camera there — those are the native app's).
+
+---
+
 ## Status
 
 | | |
 |---|---|
-| Android APK | **builds and installs** — `app.astrologynova`, ~74 MB debug |
-| Deep-sky view | built into the APK; **not yet run on a physical device** |
+| Android APK | **released** — `app.astrologynova` 1.0.0, 40 MB signed release (74 MB debug) |
+| Deep-sky view | working — verified on a phone through the web deployment |
 | iOS | not started — see below |
 
 ### About iPhone
