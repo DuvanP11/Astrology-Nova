@@ -15,6 +15,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Astrology Nova</title>
+
+<!-- Without these, "add to home screen" gives you a grey letter tile and a page that
+     opens inside the browser chrome. The mark is the same geometry as the APK's
+     launcher drawable, exported by tools/export-icons.sh.
+     Both PNG icons are declared "maskable" as well as "any": the mark keeps everything
+     load-bearing inside the central 61% of the square, which clears Android's 80%
+     maskable safe zone, so a launcher may crop it to a circle without cutting the ring. -->
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b1020">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Astrology Nova">
 <style>
   :root {
     --nova-ground: #0b1020;

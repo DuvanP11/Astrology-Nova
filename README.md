@@ -80,6 +80,11 @@ tools/serve-web.sh          # then open http://localhost:8765/
 
 Any browser with WebGL 2 will do. This is the fastest way to check a change to `web/`.
 
+`web/` also carries a web-app manifest and the mark as an icon, so "add to home screen" on
+the deployed page gives you the Nova icon and opens without browser chrome. That shortcut is
+**not the APK** — it has no sensors and no camera, because a web page cannot have Sky Map's
+sensor fusion. Regenerate the icons with `tools/export-icons.sh` if the mark changes.
+
 The same directory is what `vercel.json` deploys, so a push to `main` also publishes the sky
 view on the web. That deployment is **not a second product** — it is the phone app's WebView
 screen, served over HTTP instead of from the APK's assets, which makes it the quickest way to

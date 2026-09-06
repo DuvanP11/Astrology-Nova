@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+<defs>
+    <radialGradient id="g1" cx="44" cy="38" r="94" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#141c3c"/><stop offset="0.45" stop-color="#0b1020"/><stop offset="1" stop-color="#05070f"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="28" cy="26" r="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9b7bff" stop-opacity="0.30"/><stop offset="1" stop-color="#9b7bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" cx="82" cy="84" r="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5af2ff" stop-opacity="0.26"/><stop offset="1" stop-color="#5af2ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g4" cx="54" cy="54" r="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5af2ff" stop-opacity="0.55"/><stop offset="0.42" stop-color="#5af2ff" stop-opacity="0.24"/><stop offset="1" stop-color="#5af2ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="g5" x1="22" y1="42" x2="86" y2="66" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9b7bff"/><stop offset="0.5" stop-color="#5af2ff" stop-opacity="0.70"/><stop offset="1" stop-color="#5af2ff"/>
+    </linearGradient>
+    <linearGradient id="g6" x1="30" y1="30" x2="78" y2="78" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5af2ff"/><stop offset="0.46" stop-color="#eaf6ff"/><stop offset="1" stop-color="#9b7bff"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#g1)"/>
+  <rect width="108" height="108" fill="url(#g2)"/>
+  <rect width="108" height="108" fill="url(#g3)"/>
+  <g fill="#e6ecff" opacity="0.70">
+    <circle cx="18" cy="22" r="0.7"/><circle cx="89" cy="19" r="0.6"/><circle cx="97" cy="58" r="0.7"/>
+    <circle cx="13" cy="71" r="0.6"/><circle cx="28" cy="95" r="0.5"/><circle cx="79" cy="97" r="0.6"/>
+    <circle cx="64" cy="11" r="0.5"/><circle cx="37" cy="13" r="0.5"/><circle cx="10" cy="44" r="0.5"/>
+  </g>
+  <circle cx="54" cy="54" r="34" fill="url(#g4)"/>
+  <g transform="rotate(-22 54 54)">
+    <ellipse cx="54" cy="54" rx="32" ry="11.5" fill="none" stroke="url(#g5)" stroke-width="2.2"/>
+    <path d="M22,49.2 Q23,53 26.8,54 Q23,55 22,58.8 Q21,55 17.2,54 Q21,53 22,49.2 Z" fill="#eaf6ff"/>
+    <path d="M86,50.4 Q86.8,53.2 89.6,54 Q86.8,54.8 86,57.6 Q85.2,54.8 82.4,54 Q85.2,53.2 86,50.4 Z" fill="#5af2ff"/>
+  </g>
+  <path d="M54,27 Q60,48 81,54 Q60,60 54,81 Q48,60 27,54 Q48,48 54,27 Z" fill="url(#g6)"/>
+</svg>
