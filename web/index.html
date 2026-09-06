@@ -778,12 +778,23 @@
   // then the sky screened over it, exactly as the CSS does live — rather than
   // saving one layer and calling it a photo.
   //
-  // Reading the canvas back requires preserveDrawingBuffer, which this page asks
-  // the engine for at startup; without it the drawing buffer is already cleared
-  // by the time we get here and the sky comes out blank.
+  // Reading pixels back out of a WebGL canvas normally needs
+  // preserveDrawingBuffer, which the engine can be asked for — and which this
+  // page deliberately does NOT ask for. On a tile-based mobile GPU preserving
+  // the buffer every frame costs real frame time, all the time, to serve a
+  // button pressed once in a while.
+  //
+  // Instead the capture rides the engine's own frame. The engine's render loop
+  // re-registers itself at the end of every callback, so a requestAnimationFrame
+  // scheduled from a tap is queued behind it: the engine draws, this runs, and
+  // the browser has not composited or cleared the buffer yet.
   // ---------------------------------------------------------------------------
   function capture() {
     if (!stel) return;
+    requestAnimationFrame(compositeAndSave);
+  }
+
+  function compositeAndSave() {
     var out = document.createElement('canvas');
     out.width = canvas.width;
     out.height = canvas.height;
@@ -924,6 +935,20 @@
     return false;
   }
 
+  var syncQueued = false;
+
+  function queueSync() {
+    if (syncQueued) return;
+    syncQueued = true;
+    requestAnimationFrame(function () {
+      syncQueued = false;
+      syncToolbar();
+      syncControls();
+      updateInfo();
+      updateProgress();
+    });
+  }
+
   function syncControls() {
     CONTROLS.forEach(function (spec) {
       if (spec.toggle) {
@@ -1021,9 +1046,6 @@
   StelWebEngine({
     wasmFile: 'js/stellarium-web-engine.wasm',
     canvas: canvas,
-    // Asked for by capture(): without it the browser clears the drawing buffer
-    // after compositing each frame and a screenshot of the sky comes out empty.
-    preserveDrawingBuffer: true,
     translateFn: function (domain, str) { return str; },
 
     onReady: function (engine) {
@@ -1062,14 +1084,22 @@
       window.NovaSky.setTime(Date.now());
       core.fov = 90 * Math.PI / 180;
 
-      // One callback for every engine-side change; cheap enough to just resync
-      // the whole chrome, which is a toolbar and one card.
+      // The engine fires this for EVERY attribute it changes, and while the phone
+      // is pointing that is yaw, pitch and roll on every sensor sample — 180 calls
+      // a second, each one of which used to rebuild the whole chrome, innerHTML
+      // and coordinate conversions included. That is what made the sky stutter
+      // when you moved the phone.
+      //
+      // Two things fix it. Where you are LOOKING changes nothing on screen — the
+      // selected object's magnitude and coordinates depend on time and on where
+      // you are standing, not on which way the phone faces — so those attributes
+      // are ignored outright. Everything else is coalesced to at most one rebuild
+      // per frame, so a burst of changes costs one.
       stel.change(function (obj, attr) {
-        if (attr === 'hovered') return;
-        syncToolbar();
-        syncControls();
-        updateInfo();
-        updateProgress();
+        if (attr === 'hovered' || attr === 'yaw' || attr === 'pitch' || attr === 'roll') {
+          return;
+        }
+        queueSync();
       });
 
       syncToolbar();
